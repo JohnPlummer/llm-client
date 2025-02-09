@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"log"
 	"os"
@@ -26,7 +27,7 @@ func main() {
 	cfg := scorer.Config{
 		OpenAIKey:  os.Getenv("OPENAI_API_KEY"),
 		PromptText: string(promptText),
-		Debug:      true,
+		Debug:      false,
 	}
 
 	s, err := scorer.New(cfg)
@@ -34,23 +35,35 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Example posts
-	posts := []reddit.Post{
-		{
-			ID:       "1",
-			Title:    "Best coffee shops in downtown",
-			SelfText: "Looking for recommendations for coffee shops with good wifi for working.",
-		},
-		{
-			ID:       "2",
-			Title:    "Cat picture",
-			SelfText: "Here's my cat sleeping.",
-		},
-		{
-			ID:       "3",
-			Title:    "Tonight: Live music at The Basement Bar",
-			SelfText: "Local band playing at 8pm, $10 cover. Great venue for indie music!",
-		},
+	// Read posts from CSV file
+	file, err := os.Open("example_posts.csv")
+	if err != nil {
+		log.Fatal("Error opening posts file:", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.TrimLeadingSpace = true
+	reader.LazyQuotes = true
+
+	// Skip header row
+	_, err = reader.Read()
+	if err != nil {
+		log.Fatal("Error reading CSV header:", err)
+	}
+
+	var posts []reddit.Post
+	records, err := reader.ReadAll()
+	if err != nil {
+		log.Fatal("Error reading CSV records:", err)
+	}
+
+	for _, record := range records {
+		posts = append(posts, reddit.Post{
+			ID:       record[0],
+			Title:    record[1],
+			SelfText: record[2],
+		})
 	}
 
 	// Score the posts

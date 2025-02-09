@@ -1,0 +1,74 @@
+---
+description: Best practices for go developemen - use in all go projects
+globs: *.go
+---
+# Go Best Practices
+
+## Naming
+1. Function/Method Names:
+   - Avoid repetition (package name, receiver type, input/output types)
+   - Use noun-like names for functions that return something
+   - Use verb-like names for functions that do something
+   - Avoid 'Get' prefix
+   - Include type name only when disambiguating similar functions
+
+2. Test Doubles:
+   - Name test packages with 'test' suffix (e.g., creditcardtest)
+   - Use clear, behavior-describing names for test doubles
+   - Prefix test variables with their type (e.g., spyCC)
+
+## Variable Shadowing
+- Be careful with `:=` operator to avoid unintended shadowing
+- Avoid using variable names that match standard packages
+- Use simple assignment (=) when updating existing variables
+
+## Package Organization
+- Avoid generic package names (util, helper, common)
+- Package names should reflect their purpose
+- Keep packages focused and reasonably sized
+- Consider splitting when package becomes too large or has distinct responsibilities
+
+## Error Handling
+- Give errors meaningful structure when needed
+- Use error wrapping (`%w`) only when caller needs access to underlying error
+- Add context when propagating errors up
+- Place `%w` at the end of error strings
+- Use canonical error codes at system boundaries
+
+## Testing
+1. General Rules:
+   - Keep setup code scoped to specific tests
+   - Use field names in struct literals for table tests
+   - Don't call t.Fatal from goroutines
+   - Prefer real transports in integration tests
+
+2. Test Organization:
+   - Use test helpers for setup/cleanup
+   - Always call t.Helper() in test helpers
+   - Keep tests independent and hermetic
+   - Use subtests for better organization
+
+## String Concatenation
+- Use + for simple cases
+- Use fmt.Sprintf for complex formatting
+- Use strings.Builder for building strings incrementally
+- Use backticks for multi-line string literals
+
+## Global State
+1. Core Principles:
+   - Avoid package-level state
+   - Design for dependency injection
+   - Allow creation of instance values
+   - Make state explicit through parameters
+
+2. Exceptions:
+   - Logically constant global state
+   - Stateless package behavior
+   - Process-local state that doesn't affect external systems
+   - Cases without expectation of predictable behavior
+
+3. When Providing Default Instances:
+   - Always offer way to create isolated instances
+   - Keep package-level API thin
+   - Document and enforce invariants
+   - Provide reset functionality for tests

@@ -1,0 +1,43 @@
+---
+description: General Go style guide - use in all go projects
+globs: *.go
+---
+# Go Style Guide (based on Google's guidelines)
+
+## Core Principles (in order of importance)
+1. Clarity: Code's purpose and rationale must be clear to readers
+2. Simplicity: Accomplish goals in the simplest way possible
+3. Concision: Maintain high signal-to-noise ratio
+4. Maintainability: Code should be easy to maintain
+5. Consistency: Follow broader codebase patterns
+
+## Key Rules
+- Use gofmt for formatting
+- Use MixedCaps (camelCase/PascalCase), not snake_case
+- No fixed line length - refactor if lines feel too long
+- Keep names concise but meaningful
+- Prioritize standard library solutions before custom implementations
+- Write code that's easy to modify correctly
+- Structure APIs to grow gracefully
+- Make assumptions explicit
+- Avoid unnecessary coupling
+- Include comprehensive test suites
+
+## Code Organization
+- Allow code to speak for itself - avoid redundant comments
+- Comments should explain WHY, not WHAT
+- Break up code with whitespace and comments when clarity needed
+- Keep functions/methods modular
+- Use descriptive variable names
+- Maintain local consistency within packages
+- Choose simplicity over cleverness
+
+## Error Handling
+- Use standard Go error handling patterns
+- Provide clear, actionable error messages
+- Ensure test failures are meaningful
+
+## Dependencies
+- Minimize dependencies
+- Prefer standard library over external packages
+- Use core language constructs when sufficiento

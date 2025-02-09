@@ -31,6 +31,7 @@ type Config struct {
 	OpenAIKey     string
 	PromptText    string // If empty, will use default prompt
 	MaxConcurrent int    // for rate limiting
+	Debug         bool   // Enable debug logging
 }
 
 // OpenAIClient interface allows us to mock the OpenAI API
@@ -166,6 +167,11 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 		batch := posts[i:end]
 		prompt := fmt.Sprintf(s.prompt, formatPostsForBatch(batch))
 
+		// Debug: Log the prompt being sent
+		if s.config.Debug {
+			fmt.Printf("Sending prompt:\n%s\n", prompt)
+		}
+
 		resp, err := s.client.CreateChatCompletion(
 			ctx,
 			openai.ChatCompletionRequest{
@@ -188,6 +194,11 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 
 		if len(resp.Choices) == 0 {
 			return nil, fmt.Errorf("no response from OpenAI for batch %d-%d", i, end-1)
+		}
+
+		// Debug: Log the raw response
+		if s.config.Debug {
+			fmt.Printf("Raw response from OpenAI:\n%s\n", resp.Choices[0].Message.Content)
 		}
 
 		batchResults, err := parseBatchResponse(resp.Choices[0].Message.Content, batch)

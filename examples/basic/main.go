@@ -26,6 +26,7 @@ func main() {
 	cfg := scorer.Config{
 		OpenAIKey:  os.Getenv("OPENAI_API_KEY"),
 		PromptText: string(promptText),
+		Debug:      true,
 	}
 
 	s, err := scorer.New(cfg)

@@ -56,7 +56,12 @@ func New(cfg Config) (Scorer, error) {
 // ErrMissingAPIKey is returned when no OpenAI API key is provided
 var ErrMissingAPIKey = errors.New("OpenAI API key is required")
 
-const scorePrompt = `Evaluate this Reddit post on a scale of 0-100 based on how likely it contains information about:
+const (
+	maxBatchSize = 10                                            // Maximum number of posts to process in one API call
+	scorePrompt  = `Score each of the following Reddit posts...` // existing prompt
+)
+
+const batchScorePrompt = `Score each of the following Reddit posts on a scale of 0-100 based on how likely they contain information about:
 - Events or activities
 - Restaurant recommendations
 - Bar recommendations
@@ -65,60 +70,120 @@ const scorePrompt = `Evaluate this Reddit post on a scale of 0-100 based on how 
 
 A score of 100 means the post definitely contains specific recommendations or event details.
 A score of 0 means the post has no relevant recommendations or event information.
-Respond with only a number between 0 and 100.
 
-Post Title: %s
-Post Content: %s`
+For each post, respond with the post ID and title followed by a score between 0 and 100.
+Example format:
+abc123 "Example Title": 85
+def456 "Another Title": 30
+ghi789 "Third Title": 95
 
-// ScorePosts evaluates and scores a slice of Reddit posts
-func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredPost, error) {
+Posts to score:
+%s`
+
+func formatPostsForBatch(posts []reddit.Post) string {
+	var sb strings.Builder
+	for _, post := range posts {
+		fmt.Fprintf(&sb, "%s %q: %s\n\n", post.ID, post.Title, post.SelfText)
+	}
+	return sb.String()
+}
+
+func parseBatchResponse(response string, posts []reddit.Post) ([]ScoredPost, error) {
+	scores := make(map[string]float64)
+
+	lines := strings.Split(strings.TrimSpace(response), "\n")
+	for _, line := range lines {
+		// Find the position of the last colon (after the title)
+		lastColon := strings.LastIndex(line, ":")
+		if lastColon == -1 {
+			continue
+		}
+
+		// Extract the score part
+		scoreStr := strings.TrimSpace(line[lastColon+1:])
+		score, err := strconv.ParseFloat(scoreStr, 64)
+		if err != nil || score < 0 || score > 100 {
+			return nil, fmt.Errorf("invalid score in line %q: %s", line, scoreStr)
+		}
+
+		// Extract the ID (it's before the first quote)
+		firstQuote := strings.Index(line, "\"")
+		if firstQuote == -1 {
+			continue
+		}
+		postID := strings.TrimSpace(line[:firstQuote])
+
+		scores[postID] = score
+	}
+
+	// Create results and verify all posts were scored
 	results := make([]ScoredPost, len(posts))
 	for i, post := range posts {
-		score, err := s.scorePost(ctx, post)
-		if err != nil {
-			return nil, err
+		score, exists := scores[post.ID]
+		if !exists {
+			return nil, fmt.Errorf("missing score for post %s: %q", post.ID, post.Title)
 		}
-		results[i] = ScoredPost{Post: post, Score: score}
+		results[i] = ScoredPost{
+			Post:  post,
+			Score: score,
+		}
 	}
+
 	return results, nil
 }
 
-func (s *scorer) scorePost(ctx context.Context, post reddit.Post) (float64, error) {
-	prompt := fmt.Sprintf(scorePrompt, post.Title, post.SelfText)
+// ScorePosts evaluates and scores a slice of Reddit posts
+func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredPost, error) {
+	if len(posts) == 0 {
+		return nil, nil
+	}
 
-	resp, err := s.client.CreateChatCompletion(
-		ctx,
-		openai.ChatCompletionRequest{
-			Model: openai.GPT3Dot5Turbo,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleSystem,
-					Content: "You are a content analyzer focused on identifying posts containing location-based recommendations and events.",
-				},
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: prompt,
+	var allResults []ScoredPost
+
+	// Process posts in batches of maxBatchSize
+	for i := 0; i < len(posts); i += maxBatchSize {
+		end := i + maxBatchSize
+		if end > len(posts) {
+			end = len(posts)
+		}
+
+		batch := posts[i:end]
+		prompt := fmt.Sprintf(batchScorePrompt, formatPostsForBatch(batch))
+
+		resp, err := s.client.CreateChatCompletion(
+			ctx,
+			openai.ChatCompletionRequest{
+				Model: openai.GPT3Dot5Turbo,
+				Messages: []openai.ChatCompletionMessage{
+					{
+						Role:    openai.ChatMessageRoleSystem,
+						Content: "You are a content analyzer focused on identifying posts containing location-based recommendations and events. Respond only with post IDs and scores.",
+					},
+					{
+						Role:    openai.ChatMessageRoleUser,
+						Content: prompt,
+					},
 				},
 			},
-		},
-	)
-	if err != nil {
-		return 0, fmt.Errorf("OpenAI API error: %w", err)
+		)
+		if err != nil {
+			return nil, fmt.Errorf("OpenAI API error in batch %d-%d: %w", i, end-1, err)
+		}
+
+		if len(resp.Choices) == 0 {
+			return nil, fmt.Errorf("no response from OpenAI for batch %d-%d", i, end-1)
+		}
+
+		batchResults, err := parseBatchResponse(resp.Choices[0].Message.Content, batch)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse batch %d-%d: %w", i, end-1, err)
+		}
+
+		allResults = append(allResults, batchResults...)
+
+		// Optional: add delay between batches to respect rate limits
+		// time.Sleep(100 * time.Millisecond)
 	}
 
-	if len(resp.Choices) == 0 {
-		return 0, errors.New("no response from OpenAI")
-	}
-
-	scoreStr := strings.TrimSpace(resp.Choices[0].Message.Content)
-	score, err := strconv.ParseFloat(scoreStr, 64)
-	if err != nil {
-		return 0, fmt.Errorf("failed to parse score '%s': %w", scoreStr, err)
-	}
-
-	if score < 0 || score > 100 {
-		return 0, fmt.Errorf("score %f out of range (0-100)", score)
-	}
-
-	return score, nil
+	return allResults, nil
 }

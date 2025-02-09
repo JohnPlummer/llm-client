@@ -16,9 +16,16 @@ func main() {
 		log.Fatal("Error loading .env file")
 	}
 
+	// Read custom prompt
+	promptText, err := os.ReadFile("custom_prompt.txt")
+	if err != nil {
+		log.Fatal("Error reading prompt file:", err)
+	}
+
 	// Initialize the scorer
 	cfg := scorer.Config{
-		OpenAIKey: os.Getenv("OPENAI_API_KEY"),
+		OpenAIKey:  os.Getenv("OPENAI_API_KEY"),
+		PromptText: string(promptText),
 	}
 
 	s, err := scorer.New(cfg)

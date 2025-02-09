@@ -168,6 +168,33 @@ post15 "Post 15": 0`,
 			Expect(scored[0].Score).To(Equal(85.0))
 			Expect(scored[14].Score).To(Equal(0.0))
 		})
+
+		It("should use custom prompt when provided", func() {
+			customPrompt := "Custom prompt text %s"
+			var capturedMessages []openai.ChatCompletionMessage
+
+			mockClient.createChatCompletionFunc = func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+				capturedMessages = req.Messages
+				return openai.ChatCompletionResponse{
+					Choices: []openai.ChatCompletionChoice{{
+						Message: openai.ChatCompletionMessage{
+							Content: `123 "Best restaurants in town": 85`,
+						},
+					}},
+				}, nil
+			}
+
+			s = newWithConfig(mockClient, Config{
+				PromptText: customPrompt,
+			})
+
+			_, err := s.ScorePosts(ctx, posts)
+			Expect(err).NotTo(HaveOccurred())
+
+			// Updated to check the user message (index 1) instead of system message (index 0)
+			Expect(capturedMessages[1].Content).To(ContainSubstring("Custom prompt text"))
+			Expect(capturedMessages[1].Content).NotTo(ContainSubstring("Score each of the following Reddit posts"))
+		})
 	})
 })
 
@@ -176,5 +203,17 @@ func newWithClient(client *mockOpenAIClient) Scorer {
 	return &scorer{
 		client: client,
 		config: Config{},
+	}
+}
+
+// Update helper function to properly initialize the scorer with custom prompt
+func newWithConfig(client *mockOpenAIClient, cfg Config) Scorer {
+	if cfg.PromptText == "" {
+		cfg.PromptText = batchScorePrompt
+	}
+	return &scorer{
+		client: client,
+		config: cfg,
+		prompt: cfg.PromptText,
 	}
 }

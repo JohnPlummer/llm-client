@@ -1,0 +1,23 @@
+Score each of the following Reddit posts on a scale of 0-100 based on how likely they contain information about local events and activities in London:
+- Music events and concerts
+- Theatre shows and performances
+- Art exhibitions and galleries
+- Sports events and activities
+- Cultural festivals and celebrations
+
+A score of 100 means the post definitely contains specific London event details.
+A score of 0 means the post has no relevant London event information.
+
+IMPORTANT: For each post, respond with ONLY the post ID, title, and a SINGLE overall score between 0 and 100.
+Do not break down the score by category.
+
+IMPORTANT: You MUST provide a score for EVERY post in the input list. Do not skip any posts.
+If a post is not relevant, give it a score of 0, but still include it in the response.
+
+Example format (exactly like this):
+abc123 "Example Title": 85
+def456 "Another Title": 30
+ghi789 "Third Title": 95
+
+Posts to score:
+%s 

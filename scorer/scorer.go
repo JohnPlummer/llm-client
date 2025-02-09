@@ -29,7 +29,8 @@ type ScoredPost struct {
 // Config holds the configuration for the scorer
 type Config struct {
 	OpenAIKey     string
-	MaxConcurrent int // for rate limiting
+	PromptText    string // If empty, will use default prompt
+	MaxConcurrent int    // for rate limiting
 }
 
 // OpenAIClient interface allows us to mock the OpenAI API
@@ -41,15 +42,25 @@ type OpenAIClient interface {
 type scorer struct {
 	client OpenAIClient
 	config Config
+	prompt string
 }
 
 // New creates a new instance of the Scorer
 func New(cfg Config) (Scorer, error) {
-	client := openai.NewClient(cfg.OpenAIKey)
+	if cfg.OpenAIKey == "" {
+		return nil, ErrMissingAPIKey
+	}
 
+	prompt := batchScorePrompt
+	if cfg.PromptText != "" {
+		prompt = cfg.PromptText
+	}
+
+	client := openai.NewClient(cfg.OpenAIKey)
 	return &scorer{
 		client: client,
 		config: cfg,
+		prompt: prompt,
 	}, nil
 }
 
@@ -71,8 +82,13 @@ const batchScorePrompt = `Score each of the following Reddit posts on a scale of
 A score of 100 means the post definitely contains specific recommendations or event details.
 A score of 0 means the post has no relevant recommendations or event information.
 
-For each post, respond with the post ID and title followed by a score between 0 and 100.
-Example format:
+IMPORTANT: For each post, respond with ONLY the post ID, title, and a SINGLE overall score between 0 and 100.
+Do not break down the score by category.
+
+IMPORTANT: You MUST provide a score for EVERY post in the input list. Do not skip any posts.
+If a post is not relevant, give it a score of 0, but still include it in the response.
+
+Example format (exactly like this):
 abc123 "Example Title": 85
 def456 "Another Title": 30
 ghi789 "Third Title": 95
@@ -148,7 +164,7 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 		}
 
 		batch := posts[i:end]
-		prompt := fmt.Sprintf(batchScorePrompt, formatPostsForBatch(batch))
+		prompt := fmt.Sprintf(s.prompt, formatPostsForBatch(batch))
 
 		resp, err := s.client.CreateChatCompletion(
 			ctx,

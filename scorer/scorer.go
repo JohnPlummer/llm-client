@@ -20,8 +20,9 @@ type Scorer interface {
 
 // ScoredPost represents a Reddit post with its AI-generated score
 type ScoredPost struct {
-	Post  reddit.Post
-	Score float64
+	Post   reddit.Post
+	Score  float64
+	Reason string
 	// We could add additional fields like:
 	// Reasoning string    // explanation for the score
 	// Confidence float64 // how confident the AI is in its scoring
@@ -106,47 +107,68 @@ func formatPostsForBatch(posts []reddit.Post) string {
 }
 
 func parseBatchResponse(response string, posts []reddit.Post) ([]ScoredPost, error) {
-	scores := make(map[string]float64)
+	scores := make(map[string]struct {
+		score  float64
+		reason string
+	})
 
 	lines := strings.Split(strings.TrimSpace(response), "\n")
 	for _, line := range lines {
 		// Find the position of the last colon (after the title)
 		lastColon := strings.LastIndex(line, ":")
 		if lastColon == -1 {
-			// Skip lines that don't match expected format
 			slog.Warn("Skipping malformed line", "line", line)
 			continue
 		}
 
-		// Extract the score part
-		scoreStr := strings.TrimSpace(line[lastColon+1:])
+		// Extract the score and reason part
+		scoreAndReason := strings.TrimSpace(line[lastColon+1:])
+
+		// Find the score (everything before the [)
+		bracketStart := strings.Index(scoreAndReason, "[")
+		if bracketStart == -1 {
+			return nil, fmt.Errorf("line %q without reason", line)
+		}
+
+		scoreStr := strings.TrimSpace(scoreAndReason[:bracketStart])
 		score, err := strconv.ParseFloat(scoreStr, 64)
 		if err != nil || score < 0 || score > 100 {
 			return nil, fmt.Errorf("invalid score in line %q: %s", line, scoreStr)
 		}
 
+		// Extract reason (everything between [ and ])
+		bracketEnd := strings.LastIndex(scoreAndReason, "]")
+		if bracketEnd == -1 {
+			slog.Warn("Skipping line with malformed reason", "line", line)
+			continue
+		}
+		reason := scoreAndReason[bracketStart+1 : bracketEnd]
+
 		// Extract the ID (it's before the first quote)
 		firstQuote := strings.Index(line, "\"")
 		if firstQuote == -1 {
-			// Skip lines without proper quote formatting
 			slog.Warn("Skipping line without quote", "line", line)
 			continue
 		}
 		postID := strings.TrimSpace(line[:firstQuote])
 
-		scores[postID] = score
+		scores[postID] = struct {
+			score  float64
+			reason string
+		}{score, reason}
 	}
 
 	// Create results and verify all posts were scored
 	results := make([]ScoredPost, len(posts))
 	for i, post := range posts {
-		score, exists := scores[post.ID]
+		scoreData, exists := scores[post.ID]
 		if !exists {
 			return nil, fmt.Errorf("missing score for post %s: %q", post.ID, post.Title)
 		}
 		results[i] = ScoredPost{
-			Post:  post,
-			Score: score,
+			Post:   post,
+			Score:  scoreData.score,
+			Reason: scoreData.reason,
 		}
 	}
 
@@ -202,6 +224,15 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 		batchResults, err := parseBatchResponse(resp.Choices[0].Message.Content, batch)
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse batch %d-%d: %w", i, end-1, err)
+		}
+
+		// Add debug logging for each scored post
+		for _, post := range batchResults {
+			slog.Debug("Post scored",
+				"id", post.Post.ID,
+				"title", post.Post.Title,
+				"score", post.Score,
+				"reason", post.Reason)
 		}
 
 		allResults = append(allResults, batchResults...)

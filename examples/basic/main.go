@@ -62,7 +62,8 @@ func main() {
 	}
 
 	// Read posts from CSV file
-	file, err := os.Open("example_posts.csv")
+	// file, err := os.Open("example_posts.csv")
+	file, err := os.Open("example_posts_edge_cases.csv")
 	if err != nil {
 		slog.Error("Error opening posts file", "error", err)
 		os.Exit(1)

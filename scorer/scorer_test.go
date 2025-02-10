@@ -58,7 +58,7 @@ var _ = Describe("Scorer", func() {
 				Choices: []openai.ChatCompletionChoice{
 					{
 						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 85`,
+							Content: `123 "Best restaurants in town": 85 [Restaurant recommendations]`,
 						},
 					},
 				},
@@ -68,6 +68,7 @@ var _ = Describe("Scorer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(scored).To(HaveLen(1))
 			Expect(scored[0].Score).To(Equal(85.0))
+			Expect(scored[0].Reason).To(Equal("Restaurant recommendations"))
 		})
 
 		It("should handle API errors", func() {
@@ -82,7 +83,7 @@ var _ = Describe("Scorer", func() {
 				Choices: []openai.ChatCompletionChoice{
 					{
 						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": invalid`,
+							Content: `123 "Best restaurants in town": invalid [Test reason]`,
 						},
 					},
 				},
@@ -97,7 +98,7 @@ var _ = Describe("Scorer", func() {
 				Choices: []openai.ChatCompletionChoice{
 					{
 						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 150`,
+							Content: `123 "Best restaurants in town": 150 [Test reason]`,
 						},
 					},
 				},
@@ -105,6 +106,39 @@ var _ = Describe("Scorer", func() {
 
 			_, err := s.ScorePosts(ctx, posts)
 			Expect(err).To(MatchError(ContainSubstring("invalid score")))
+		})
+
+		It("should successfully score posts with reasons", func() {
+			mockClient.response = openai.ChatCompletionResponse{
+				Choices: []openai.ChatCompletionChoice{
+					{
+						Message: openai.ChatCompletionMessage{
+							Content: `123 "Best restaurants in town": 85 [Contains specific restaurant recommendations]`,
+						},
+					},
+				},
+			}
+
+			scored, err := s.ScorePosts(ctx, posts)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(scored).To(HaveLen(1))
+			Expect(scored[0].Score).To(Equal(85.0))
+			Expect(scored[0].Reason).To(Equal("Contains specific restaurant recommendations"))
+		})
+
+		It("should handle missing reason brackets", func() {
+			mockClient.response = openai.ChatCompletionResponse{
+				Choices: []openai.ChatCompletionChoice{
+					{
+						Message: openai.ChatCompletionMessage{
+							Content: `123 "Best restaurants in town": 85`,
+						},
+					},
+				},
+			}
+
+			_, err := s.ScorePosts(ctx, posts)
+			Expect(err).To(MatchError(ContainSubstring("without reason")))
 		})
 
 		It("should handle more than maxBatchSize posts", func() {
@@ -124,16 +158,16 @@ var _ = Describe("Scorer", func() {
 					// First batch response (posts 1-10)
 					Choices: []openai.ChatCompletionChoice{{
 						Message: openai.ChatCompletionMessage{
-							Content: `post1 "Post 1": 85
-post2 "Post 2": 70
-post3 "Post 3": 60
-post4 "Post 4": 55
-post5 "Post 5": 50
-post6 "Post 6": 45
-post7 "Post 7": 40
-post8 "Post 8": 35
-post9 "Post 9": 30
-post10 "Post 10": 25`,
+							Content: `post1 "Post 1": 85 [Event listing]
+post2 "Post 2": 70 [Restaurant review]
+post3 "Post 3": 60 [General discussion]
+post4 "Post 4": 55 [Partial information]
+post5 "Post 5": 50 [Some relevance]
+post6 "Post 6": 45 [Limited details]
+post7 "Post 7": 40 [Vague content]
+post8 "Post 8": 35 [Minimal relevance]
+post9 "Post 9": 30 [Few details]
+post10 "Post 10": 25 [Not very relevant]`,
 						},
 					}},
 				},
@@ -141,11 +175,11 @@ post10 "Post 10": 25`,
 					// Second batch response (posts 11-15)
 					Choices: []openai.ChatCompletionChoice{{
 						Message: openai.ChatCompletionMessage{
-							Content: `post11 "Post 11": 20
-post12 "Post 12": 15
-post13 "Post 13": 10
-post14 "Post 14": 5
-post15 "Post 15": 0`,
+							Content: `post11 "Post 11": 20 [Low relevance]
+post12 "Post 12": 15 [Very low relevance]
+post13 "Post 13": 10 [Almost irrelevant]
+post14 "Post 14": 5 [Barely relevant]
+post15 "Post 15": 0 [Not relevant]`,
 						},
 					}},
 				},
@@ -167,6 +201,10 @@ post15 "Post 15": 0`,
 			// 5. Verify scores are as expected
 			Expect(scored[0].Score).To(Equal(85.0))
 			Expect(scored[14].Score).To(Equal(0.0))
+
+			// Add reason verification
+			Expect(scored[0].Reason).To(Equal("Event listing"))
+			Expect(scored[14].Reason).To(Equal("Not relevant"))
 		})
 
 		It("should use custom prompt when provided", func() {
@@ -178,7 +216,7 @@ post15 "Post 15": 0`,
 				return openai.ChatCompletionResponse{
 					Choices: []openai.ChatCompletionChoice{{
 						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 85`,
+							Content: `123 "Best restaurants in town": 85 [Custom prompt test]`,
 						},
 					}},
 				}, nil

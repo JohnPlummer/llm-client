@@ -2,10 +2,10 @@ package scorer
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog" // Using standard library slog
-	"strconv"
 	"strings"
 
 	"github.com/JohnPlummer/reddit-client/reddit"
@@ -74,29 +74,59 @@ const (
 	scorePrompt  = `Score each of the following Reddit posts...` // existing prompt
 )
 
-const batchScorePrompt = `Score each of the following Reddit posts on a scale of 0-100 based on how likely they contain information about:
-- Events or activities
-- Restaurant recommendations
-- Bar recommendations
-- Cafe/coffee shop recommendations
-- Other actionable location-based activities
+const batchScorePrompt = `Score each of the following Reddit post titles and output as JSON. Consider these categories:
+- Regular venues (restaurants, bars, cafes, museums, galleries, etc.)
+- Local attractions and points of interest
+- Entertainment events (music, theatre, comedy, sports, etc.)
+- Cultural events and festivals
+- Markets and shopping areas
+- Parks and outdoor spaces
+- Family-friendly activities
+- Seasonal or special events
+- Hidden gems and local recommendations
 
-A score of 100 means the post definitely contains specific recommendations or event details.
-A score of 0 means the post has no relevant recommendations or event information.
+Scoring guidelines:
+90-100: Title directly references specific venues, events, or activities
+70-89: Title suggests discussion of activities or places
+40-69: Title might contain some relevant information
+1-39: Title has low probability of relevant information
+0: Title clearly indicates no relevant activity information
 
-IMPORTANT: For each post, respond with ONLY the post ID, title, and a SINGLE overall score between 0 and 100.
-Do not break down the score by category.
-
-IMPORTANT: You MUST provide a score for EVERY post in the input list. Do not skip any posts.
-If a post is not relevant, give it a score of 0, but still include it in the response.
-
-Example format (exactly like this):
-abc123 "Example Title": 85
-def456 "Another Title": 30
-ghi789 "Third Title": 95
+CRITICAL RULES:
+1. Output must be ONLY valid JSON with no markdown or other formatting
+2. Response must follow this exact format:
+{
+  "version": "1.0",
+  "scores": [
+    {
+      "post_id": "<id>",
+      "title": "<title>",
+      "score": <0-100>,
+      "reason": "<explanation>"
+    }
+  ]
+}
+3. Every post must receive a score and reason
+4. Empty/invalid posts must get score 0
+5. Never skip posts - score everything
+6. Score must be between 0-100
+7. Include clear reasoning for each score
 
 Posts to score:
 %s`
+
+// Add new types for JSON parsing
+type scoreResponse struct {
+	Version string      `json:"version"`
+	Scores  []scoreItem `json:"scores"`
+}
+
+type scoreItem struct {
+	PostID string  `json:"post_id"`
+	Title  string  `json:"title"`
+	Score  float64 `json:"score"`
+	Reason string  `json:"reason"`
+}
 
 func formatPostsForBatch(posts []reddit.Post) string {
 	var sb strings.Builder
@@ -106,69 +136,35 @@ func formatPostsForBatch(posts []reddit.Post) string {
 	return sb.String()
 }
 
+// Update parseBatchResponse to handle JSON
 func parseBatchResponse(response string, posts []reddit.Post) ([]ScoredPost, error) {
-	scores := make(map[string]struct {
-		score  float64
-		reason string
-	})
-
-	lines := strings.Split(strings.TrimSpace(response), "\n")
-	for _, line := range lines {
-		// Find the position of the last colon (after the title)
-		lastColon := strings.LastIndex(line, ":")
-		if lastColon == -1 {
-			slog.Warn("Skipping malformed line", "line", line)
-			continue
-		}
-
-		// Extract the score and reason part
-		scoreAndReason := strings.TrimSpace(line[lastColon+1:])
-
-		// Find the score (everything before the [)
-		bracketStart := strings.Index(scoreAndReason, "[")
-		if bracketStart == -1 {
-			return nil, fmt.Errorf("line %q without reason", line)
-		}
-
-		scoreStr := strings.TrimSpace(scoreAndReason[:bracketStart])
-		score, err := strconv.ParseFloat(scoreStr, 64)
-		if err != nil || score < 0 || score > 100 {
-			return nil, fmt.Errorf("invalid score in line %q: %s", line, scoreStr)
-		}
-
-		// Extract reason (everything between [ and ])
-		bracketEnd := strings.LastIndex(scoreAndReason, "]")
-		if bracketEnd == -1 {
-			slog.Warn("Skipping line with malformed reason", "line", line)
-			continue
-		}
-		reason := scoreAndReason[bracketStart+1 : bracketEnd]
-
-		// Extract the ID (it's before the first quote)
-		firstQuote := strings.Index(line, "\"")
-		if firstQuote == -1 {
-			slog.Warn("Skipping line without quote", "line", line)
-			continue
-		}
-		postID := strings.TrimSpace(line[:firstQuote])
-
-		scores[postID] = struct {
-			score  float64
-			reason string
-		}{score, reason}
+	var resp scoreResponse
+	if err := json.Unmarshal([]byte(response), &resp); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON response: %w", err)
 	}
 
-	// Create results and verify all posts were scored
+	if resp.Version != "1.0" {
+		slog.Warn("Unexpected version in response", "version", resp.Version)
+	}
+
+	scores := make(map[string]scoreItem)
+	for _, score := range resp.Scores {
+		if score.Score < 0 || score.Score > 100 {
+			return nil, fmt.Errorf("invalid score %f for post %s", score.Score, score.PostID)
+		}
+		scores[score.PostID] = score
+	}
+
 	results := make([]ScoredPost, len(posts))
 	for i, post := range posts {
-		scoreData, exists := scores[post.ID]
+		score, exists := scores[post.ID]
 		if !exists {
 			return nil, fmt.Errorf("missing score for post %s: %q", post.ID, post.Title)
 		}
 		results[i] = ScoredPost{
 			Post:   post,
-			Score:  scoreData.score,
-			Reason: scoreData.reason,
+			Score:  score.Score,
+			Reason: score.Reason,
 		}
 	}
 

@@ -1,6 +1,4 @@
-Score each of the following Reddit post titles on a scale of 0-100 based on how likely they contain information about things to do, places to visit, or events to attend:
-
-Consider these categories:
+Score each of the following Reddit post titles and output as JSON. Consider these categories:
 - Regular venues (restaurants, bars, cafes, museums, galleries, etc.)
 - Local attractions and points of interest
 - Entertainment events (music, theatre, comedy, sports, etc.)
@@ -11,9 +9,6 @@ Consider these categories:
 - Seasonal or special events
 - Hidden gems and local recommendations
 
-A score of 100 means the post title strongly suggests it contains information about activities, venues, or events.
-A score of 0 means the post title suggests no relevant information about things to do or places to visit.
-
 Scoring guidelines:
 90-100: Title directly references specific venues, events, or activities
 70-89: Title suggests discussion of activities or places
@@ -22,27 +17,24 @@ Scoring guidelines:
 0: Title clearly indicates no relevant activity information
 
 CRITICAL RULES:
-1. You MUST output exactly one line per input post - count the posts and ensure you output the same number of lines
-2. Each line MUST follow this exact format with square brackets: <post_id> "<title>": <score> [<reason>]
-3. Every post MUST receive a score AND reason, even if it's 0
-4. Empty titles, invalid posts, or unclear content MUST get a score of 0
-5. Never skip a post or leave it unscored - if you're unsure, score it 0
-6. Never include additional commentary, summaries, or footer text
-7. ALWAYS include a reason in [square brackets]
-8. Output ONLY the scored lines, nothing else
-9. Start your response with BEGIN SCORES and end with END SCORES
-
-Example response format:
-BEGIN SCORES
-"" "": 0 [Empty post]
-xyz "Technical error #404": 0 [Error message]
-123 "<script>alert(1)</script>": 0 [Invalid content]
-abc "null": 0 [Null content]
-def "Just joined!": 0 [No activity information]
-ghi "Free Concert Tonight!": 95 [Specific event with timing]
-jkl "Best coffee shops in downtown": 70 [Contains venue category]
-mno "Looking for weekend activities": 50 [General activity request]
-END SCORES
+1. Output must be ONLY valid JSON with no markdown or other formatting
+2. Response must follow this exact format:
+{
+  "version": "1.0",
+  "scores": [
+    {
+      "post_id": "<id>",
+      "title": "<title>",
+      "score": <0-100>,
+      "reason": "<explanation>"
+    }
+  ]
+}
+3. Every post must receive a score and reason
+4. Empty/invalid posts must get score 0
+5. Never skip posts - score everything
+6. Score must be between 0-100
+7. Include clear reasoning for each score
 
 Posts to score:
 %s 

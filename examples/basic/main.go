@@ -62,8 +62,8 @@ func main() {
 	}
 
 	// Read posts from CSV file
-	// file, err := os.Open("example_posts.csv")
-	file, err := os.Open("example_posts_edge_cases.csv")
+	file, err := os.Open("example_posts.csv")
+	// file, err := os.Open("example_posts_edge_cases.csv")
 	if err != nil {
 		slog.Error("Error opening posts file", "error", err)
 		os.Exit(1)
@@ -105,6 +105,6 @@ func main() {
 
 	// Print results
 	for _, post := range scoredPosts {
-		fmt.Printf("Post: %s\nScore: %.2f\n\n", post.Post.Title, post.Score)
+		fmt.Printf("Post: %s\nScore: %.2f\nReason: %s\n\n", post.Post.Title, post.Score, post.Reason)
 	}
 }

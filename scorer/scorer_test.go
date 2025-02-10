@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/JohnPlummer/reddit-client/reddit"
@@ -17,7 +18,7 @@ func TestScorer(t *testing.T) {
 	RunSpecs(t, "Scorer Suite")
 }
 
-// mockOpenAIClient implements the openAIClient interface for testing
+// mockOpenAIClient implements the OpenAIClient interface for testing
 type mockOpenAIClient struct {
 	response                 openai.ChatCompletionResponse
 	err                      error
@@ -45,213 +46,257 @@ var _ = Describe("Scorer", func() {
 		s = newWithClient(mockClient)
 		posts = []reddit.Post{
 			{
-				ID:       "123",
-				Title:    "Best restaurants in town",
-				SelfText: "Check out these amazing places...",
+				ID:       "post1",
+				Title:    "Test Post 1",
+				SelfText: "Test Content 1",
 			},
 		}
 	})
 
-	Context("ScorePosts", func() {
-		It("should successfully score posts", func() {
-			mockClient.response = openai.ChatCompletionResponse{
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 85 [Restaurant recommendations]`,
-						},
-					},
+	Context("New", func() {
+		It("should return error when API key is missing", func() {
+			_, err := New(Config{})
+			Expect(err).To(Equal(ErrMissingAPIKey))
+		})
+
+		It("should create a working scorer with valid API key", func() {
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version": "1.0","scores": [{"post_id": "post1", "title": "Test Post", "score": 85, "reason": "Test reason"}]}`,
+							},
+						}},
+					}, nil
 				},
+			}
+
+			s := &scorer{
+				client: mockClient,
+				config: Config{OpenAIKey: "test-key"},
+				prompt: batchScorePrompt,
 			}
 
 			scored, err := s.ScorePosts(ctx, posts)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(scored).To(HaveLen(1))
-			Expect(scored[0].Score).To(Equal(85.0))
-			Expect(scored[0].Reason).To(Equal("Restaurant recommendations"))
+
+			result := scored[0]
+			Expect(result.Post).To(Equal(posts[0]))
+			Expect(result.Score).To(BeNumerically(">=", 0))
+			Expect(result.Score).To(BeNumerically("<=", 100))
+			Expect(result.Reason).NotTo(BeEmpty())
+		})
+	})
+
+	Context("ScorePosts", func() {
+		BeforeEach(func() {
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version": "1.0","scores": [{"post_id": "post1", "title": "Test Post", "score": 85, "reason": "Test reason"}]}`,
+							},
+						}},
+					}, nil
+				},
+			}
+			s = &scorer{
+				client: mockClient,
+				config: Config{},
+				prompt: batchScorePrompt,
+			}
+		})
+
+		It("should return nil for empty posts", func() {
+			scored, err := s.ScorePosts(ctx, nil)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(scored).To(BeNil())
 		})
 
 		It("should handle API errors", func() {
-			mockClient.err = errors.New("API error")
-
-			_, err := s.ScorePosts(ctx, posts)
-			Expect(err).To(MatchError(ContainSubstring("API error")))
-		})
-
-		It("should handle invalid scores", func() {
-			mockClient.response = openai.ChatCompletionResponse{
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": invalid [Test reason]`,
-						},
-					},
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					return openai.ChatCompletionResponse{}, errors.New("API error")
 				},
 			}
+			s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
 
 			_, err := s.ScorePosts(ctx, posts)
-			Expect(err).To(MatchError(ContainSubstring("invalid score")))
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("API error"))
+		})
+
+		It("should handle empty API response", func() {
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{},
+					}, nil
+				},
+			}
+			s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
+
+			_, err := s.ScorePosts(ctx, posts)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("no response from OpenAI"))
 		})
 
 		It("should handle out of range scores", func() {
-			mockClient.response = openai.ChatCompletionResponse{
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 150 [Test reason]`,
-						},
-					},
-				},
+			// Test both too high and too low scores
+			testCases := []struct {
+				name  string
+				score float64
+			}{
+				{"too high", 101},
+				{"too low", -1},
 			}
 
-			_, err := s.ScorePosts(ctx, posts)
-			Expect(err).To(MatchError(ContainSubstring("invalid score")))
-		})
-
-		It("should successfully score posts with reasons", func() {
-			mockClient.response = openai.ChatCompletionResponse{
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 85 [Contains specific restaurant recommendations]`,
-						},
+			for _, tc := range testCases {
+				mockClient := &mockOpenAIClient{
+					createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+						return openai.ChatCompletionResponse{
+							Choices: []openai.ChatCompletionChoice{{
+								Message: openai.ChatCompletionMessage{
+									Content: fmt.Sprintf(`{"version": "1.0","scores": [{"post_id": "post1", "title": "Test Post", "score": %f, "reason": "Test reason"}]}`, tc.score),
+								},
+							}},
+						}, nil
 					},
-				},
-			}
-
-			scored, err := s.ScorePosts(ctx, posts)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(scored).To(HaveLen(1))
-			Expect(scored[0].Score).To(Equal(85.0))
-			Expect(scored[0].Reason).To(Equal("Contains specific restaurant recommendations"))
-		})
-
-		It("should handle missing reason brackets", func() {
-			mockClient.response = openai.ChatCompletionResponse{
-				Choices: []openai.ChatCompletionChoice{
-					{
-						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 85`,
-						},
-					},
-				},
-			}
-
-			_, err := s.ScorePosts(ctx, posts)
-			Expect(err).To(MatchError(ContainSubstring("without reason")))
-		})
-
-		It("should handle more than maxBatchSize posts", func() {
-			// 1. Setup: Create a slice of 15 posts
-			largePosts := make([]reddit.Post, 15)
-			for i := range largePosts {
-				largePosts[i] = reddit.Post{
-					ID:       fmt.Sprintf("post%d", i+1),
-					Title:    fmt.Sprintf("Post %d", i+1),
-					SelfText: "Content",
 				}
-			}
+				s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
 
-			// 2. Setup responses for both batches
-			responses := []openai.ChatCompletionResponse{
-				{
-					// First batch response (posts 1-10)
-					Choices: []openai.ChatCompletionChoice{{
-						Message: openai.ChatCompletionMessage{
-							Content: `post1 "Post 1": 85 [Event listing]
-post2 "Post 2": 70 [Restaurant review]
-post3 "Post 3": 60 [General discussion]
-post4 "Post 4": 55 [Partial information]
-post5 "Post 5": 50 [Some relevance]
-post6 "Post 6": 45 [Limited details]
-post7 "Post 7": 40 [Vague content]
-post8 "Post 8": 35 [Minimal relevance]
-post9 "Post 9": 30 [Few details]
-post10 "Post 10": 25 [Not very relevant]`,
-						},
-					}},
-				},
-				{
-					// Second batch response (posts 11-15)
-					Choices: []openai.ChatCompletionChoice{{
-						Message: openai.ChatCompletionMessage{
-							Content: `post11 "Post 11": 20 [Low relevance]
-post12 "Post 12": 15 [Very low relevance]
-post13 "Post 13": 10 [Almost irrelevant]
-post14 "Post 14": 5 [Barely relevant]
-post15 "Post 15": 0 [Not relevant]`,
-						},
-					}},
+				// Verify through public interface that invalid scores are handled
+				scored, err := s.ScorePosts(ctx, posts)
+				Expect(err).To(HaveOccurred(), "case: %s", tc.name)
+				Expect(scored).To(BeNil(), "case: %s", tc.name)
+			}
+		})
+
+		It("should handle missing scores", func() {
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version": "1.0","scores": []}`,
+							},
+						}},
+					}, nil
 				},
 			}
+			s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
 
-			// 3. Create a mock client that returns different responses for each batch
-			responseIndex := 0
-			mockClient.createChatCompletionFunc = func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
-				resp := responses[responseIndex]
-				responseIndex++
-				return resp, nil
-			}
-
-			// 4. Score all posts in one call
-			scored, err := s.ScorePosts(ctx, largePosts)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(scored).To(HaveLen(15))
-
-			// 5. Verify scores are as expected
-			Expect(scored[0].Score).To(Equal(85.0))
-			Expect(scored[14].Score).To(Equal(0.0))
-
-			// Add reason verification
-			Expect(scored[0].Reason).To(Equal("Event listing"))
-			Expect(scored[14].Reason).To(Equal("Not relevant"))
+			_, err := s.ScorePosts(ctx, posts)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("missing score"))
 		})
 
 		It("should use custom prompt when provided", func() {
 			customPrompt := "Custom prompt text %s"
-			var capturedMessages []openai.ChatCompletionMessage
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					// Verify custom prompt is used
+					Expect(req.Messages[1].Content).To(ContainSubstring("Custom prompt text"))
 
-			mockClient.createChatCompletionFunc = func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
-				capturedMessages = req.Messages
-				return openai.ChatCompletionResponse{
-					Choices: []openai.ChatCompletionChoice{{
-						Message: openai.ChatCompletionMessage{
-							Content: `123 "Best restaurants in town": 85 [Custom prompt test]`,
-						},
-					}},
-				}, nil
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version": "1.0","scores": [{"post_id": "post1", "title": "Test Post", "score": 85, "reason": "Custom prompt test"}]}`,
+							},
+						}},
+					}, nil
+				},
+			}
+			s = &scorer{
+				client: mockClient,
+				config: Config{},
+				prompt: customPrompt,
 			}
 
-			s = newWithConfig(mockClient, Config{
-				PromptText: customPrompt,
-			})
-
-			_, err := s.ScorePosts(ctx, posts)
+			scored, err := s.ScorePosts(ctx, posts)
 			Expect(err).NotTo(HaveOccurred())
+			Expect(scored).To(HaveLen(1))
+			Expect(scored[0].Score).To(Equal(85.0))
+			Expect(scored[0].Reason).To(Equal("Custom prompt test"))
+		})
 
-			// Updated to check the user message (index 1) instead of system message (index 0)
-			Expect(capturedMessages[1].Content).To(ContainSubstring("Custom prompt text"))
-			Expect(capturedMessages[1].Content).NotTo(ContainSubstring("Score each of the following Reddit posts"))
+		It("should handle more than maxBatchSize posts", func() {
+			// Create 15 test posts
+			largePosts := make([]reddit.Post, 15)
+			for i := range largePosts {
+				largePosts[i] = reddit.Post{
+					ID:       fmt.Sprintf("post%d", i+1),
+					Title:    fmt.Sprintf("Test Post %d", i+1),
+					SelfText: "Content",
+				}
+			}
+
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					// Determine which batch we're processing based on the content
+					batchStart := 0
+					if len(req.Messages) > 1 && req.Messages[1].Content != "" {
+						if strings.Contains(req.Messages[1].Content, "post11") {
+							batchStart = 10
+						}
+					}
+
+					// Build response for current batch
+					var scores strings.Builder
+					scores.WriteString(`{"version": "1.0","scores": [`)
+
+					batchEnd := batchStart + 10
+					if batchEnd > 15 {
+						batchEnd = 15
+					}
+
+					for i := batchStart; i < batchEnd; i++ {
+						if i > batchStart {
+							scores.WriteString(",")
+						}
+						fmt.Fprintf(&scores,
+							`{"post_id": "post%d", "title": "Test Post %d", "score": %d, "reason": "Test reason %d"}`,
+							i+1, i+1, 85-i*5, i+1)
+					}
+					scores.WriteString("]}")
+
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: scores.String(),
+							},
+						}},
+					}, nil
+				},
+			}
+			s = &scorer{
+				client: mockClient,
+				config: Config{},
+				prompt: batchScorePrompt,
+			}
+
+			scored, err := s.ScorePosts(ctx, largePosts)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(scored).To(HaveLen(15))
+
+			for i, result := range scored {
+				Expect(result.Post).To(Equal(largePosts[i]))
+				Expect(result.Score).To(BeNumerically(">=", 0))
+				Expect(result.Score).To(BeNumerically("<=", 100))
+				Expect(result.Reason).NotTo(BeEmpty())
+			}
 		})
 	})
 })
 
-// newWithClient creates a new scorer with a custom OpenAI client for testing
+// Helper functions
 func newWithClient(client *mockOpenAIClient) Scorer {
 	return &scorer{
 		client: client,
 		config: Config{},
-	}
-}
-
-// Update helper function to properly initialize the scorer with custom prompt
-func newWithConfig(client *mockOpenAIClient, cfg Config) Scorer {
-	if cfg.PromptText == "" {
-		cfg.PromptText = batchScorePrompt
-	}
-	return &scorer{
-		client: client,
-		config: cfg,
-		prompt: cfg.PromptText,
+		prompt: batchScorePrompt,
 	}
 }

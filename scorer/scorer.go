@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog" // Using standard library slog
 	"strconv"
 	"strings"
 
@@ -31,7 +32,6 @@ type Config struct {
 	OpenAIKey     string
 	PromptText    string // If empty, will use default prompt
 	MaxConcurrent int    // for rate limiting
-	Debug         bool   // Enable debug logging
 }
 
 // OpenAIClient interface allows us to mock the OpenAI API
@@ -113,6 +113,8 @@ func parseBatchResponse(response string, posts []reddit.Post) ([]ScoredPost, err
 		// Find the position of the last colon (after the title)
 		lastColon := strings.LastIndex(line, ":")
 		if lastColon == -1 {
+			// Skip lines that don't match expected format
+			slog.Warn("Skipping malformed line", "line", line)
 			continue
 		}
 
@@ -126,6 +128,8 @@ func parseBatchResponse(response string, posts []reddit.Post) ([]ScoredPost, err
 		// Extract the ID (it's before the first quote)
 		firstQuote := strings.Index(line, "\"")
 		if firstQuote == -1 {
+			// Skip lines without proper quote formatting
+			slog.Warn("Skipping line without quote", "line", line)
 			continue
 		}
 		postID := strings.TrimSpace(line[:firstQuote])
@@ -167,10 +171,7 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 		batch := posts[i:end]
 		prompt := fmt.Sprintf(s.prompt, formatPostsForBatch(batch))
 
-		// Debug: Log the prompt being sent
-		if s.config.Debug {
-			fmt.Printf("Sending prompt:\n%s\n", prompt)
-		}
+		slog.Debug("Sending prompt", "prompt", prompt)
 
 		resp, err := s.client.CreateChatCompletion(
 			ctx,
@@ -196,10 +197,7 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 			return nil, fmt.Errorf("no response from OpenAI for batch %d-%d", i, end-1)
 		}
 
-		// Debug: Log the raw response
-		if s.config.Debug {
-			fmt.Printf("Raw response from OpenAI:\n%s\n", resp.Choices[0].Message.Content)
-		}
+		slog.Debug("Raw response from OpenAI", "response", resp.Choices[0].Message.Content)
 
 		batchResults, err := parseBatchResponse(resp.Choices[0].Message.Content, batch)
 		if err != nil {

@@ -17,20 +17,31 @@ package main
 
 import (
     "context"
-    "log"
+    "log/slog"
     "os"
     "github.com/JohnPlummer/post-scorer/scorer"
+    "github.com/joho/godotenv"
 )
 
 func main() {
+    // Load .env file
+    godotenv.Load()
+
+    // Initialize logger
+    opts := &slog.HandlerOptions{
+        Level: getLogLevel(os.Getenv("LOG_LEVEL")),
+    }
+    logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
+    slog.SetDefault(logger)
+
     cfg := scorer.Config{
         OpenAIKey: os.Getenv("OPENAI_API_KEY"),
-        Debug:     false,  // Enable for detailed logging
     }
 
     s, err := scorer.New(cfg)
     if err != nil {
-        log.Fatal(err)
+        slog.Error("Failed to create scorer", "error", err)
+        os.Exit(1)
     }
 
     posts := []reddit.Post{
@@ -39,11 +50,12 @@ func main() {
 
     scoredPosts, err := s.ScorePosts(context.Background(), posts)
     if err != nil {
-        log.Fatal(err)
+        slog.Error("Failed to score posts", "error", err)
+        os.Exit(1)
     }
 
     for _, post := range scoredPosts {
-        log.Printf("Post: %s, Score: %.2f\n", post.Post.Title, post.Score)
+        slog.Info("Scored post", "title", post.Post.Title, "score", post.Score)
     }
 }
 ```
@@ -110,8 +122,14 @@ type Config struct {
     OpenAIKey     string  // Required: Your OpenAI API key
     PromptText    string  // Optional: Custom scoring prompt
     MaxConcurrent int     // Optional: For rate limiting
-    Debug         bool    // Optional: Enable debug logging
 }
+```
+
+### Environment Variables
+
+```env
+OPENAI_API_KEY=your-openai-api-key-here
+LOG_LEVEL=debug  # Options: debug, info, warn, error (defaults to error)
 ```
 
 ## Project Structure

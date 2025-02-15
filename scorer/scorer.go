@@ -30,6 +30,25 @@ func New(cfg Config) (Scorer, error) {
 	}, nil
 }
 
+// WithPrompt returns a function that sets a custom prompt for the scorer
+func WithPrompt(prompt string) func(*scorer) {
+	return func(s *scorer) {
+		s.prompt = prompt
+	}
+}
+
+// NewWithClient creates a new scorer with a custom OpenAI client and options
+func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
+	s := &scorer{
+		client: client,
+		prompt: batchScorePrompt,
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	return s
+}
+
 func formatPostsForBatch(posts []reddit.Post) string {
 	var sb strings.Builder
 	for _, post := range posts {

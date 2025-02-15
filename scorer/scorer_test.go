@@ -1,4 +1,4 @@
-package scorer
+package scorer_test
 
 import (
 	"context"
@@ -11,6 +11,8 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/sashabaranov/go-openai"
+
+	"github.com/JohnPlummer/post-scorer/scorer"
 )
 
 func TestScorer(t *testing.T) {
@@ -35,7 +37,7 @@ func (m *mockOpenAIClient) CreateChatCompletion(ctx context.Context, req openai.
 var _ = Describe("Scorer", func() {
 	var (
 		mockClient *mockOpenAIClient
-		s          Scorer
+		s          scorer.Scorer
 		posts      []reddit.Post
 		ctx        context.Context
 	)
@@ -43,7 +45,7 @@ var _ = Describe("Scorer", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		mockClient = &mockOpenAIClient{}
-		s = newWithClient(mockClient)
+		s = scorer.NewWithClient(mockClient)
 		posts = []reddit.Post{
 			{
 				ID:       "post1",
@@ -55,8 +57,8 @@ var _ = Describe("Scorer", func() {
 
 	Context("New", func() {
 		It("should return error when API key is missing", func() {
-			_, err := New(Config{})
-			Expect(err).To(Equal(ErrMissingAPIKey))
+			_, err := scorer.New(scorer.Config{})
+			Expect(err).To(Equal(scorer.ErrMissingAPIKey))
 		})
 
 		It("should create a working scorer with valid API key", func() {
@@ -72,12 +74,7 @@ var _ = Describe("Scorer", func() {
 				},
 			}
 
-			s := &scorer{
-				client: mockClient,
-				config: Config{OpenAIKey: "test-key"},
-				prompt: batchScorePrompt,
-			}
-
+			s := scorer.NewWithClient(mockClient)
 			scored, err := s.ScorePosts(ctx, posts)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(scored).To(HaveLen(1))
@@ -103,11 +100,7 @@ var _ = Describe("Scorer", func() {
 					}, nil
 				},
 			}
-			s = &scorer{
-				client: mockClient,
-				config: Config{},
-				prompt: batchScorePrompt,
-			}
+			s = scorer.NewWithClient(mockClient)
 		})
 
 		It("should return nil for empty posts", func() {
@@ -122,7 +115,7 @@ var _ = Describe("Scorer", func() {
 					return openai.ChatCompletionResponse{}, errors.New("API error")
 				},
 			}
-			s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
+			s = scorer.NewWithClient(mockClient)
 
 			_, err := s.ScorePosts(ctx, posts)
 			Expect(err).To(HaveOccurred())
@@ -137,7 +130,7 @@ var _ = Describe("Scorer", func() {
 					}, nil
 				},
 			}
-			s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
+			s = scorer.NewWithClient(mockClient)
 
 			_, err := s.ScorePosts(ctx, posts)
 			Expect(err).To(HaveOccurred())
@@ -166,7 +159,7 @@ var _ = Describe("Scorer", func() {
 						}, nil
 					},
 				}
-				s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
+				s = scorer.NewWithClient(mockClient)
 
 				// Verify through public interface that invalid scores are handled
 				scored, err := s.ScorePosts(ctx, posts)
@@ -187,7 +180,7 @@ var _ = Describe("Scorer", func() {
 					}, nil
 				},
 			}
-			s = &scorer{client: mockClient, config: Config{}, prompt: batchScorePrompt}
+			s = scorer.NewWithClient(mockClient)
 
 			_, err := s.ScorePosts(ctx, posts)
 			Expect(err).To(HaveOccurred())
@@ -210,11 +203,7 @@ var _ = Describe("Scorer", func() {
 					}, nil
 				},
 			}
-			s = &scorer{
-				client: mockClient,
-				config: Config{},
-				prompt: customPrompt,
-			}
+			s = scorer.NewWithClient(mockClient, scorer.WithPrompt(customPrompt))
 
 			scored, err := s.ScorePosts(ctx, posts)
 			Expect(err).NotTo(HaveOccurred())
@@ -272,11 +261,7 @@ var _ = Describe("Scorer", func() {
 					}, nil
 				},
 			}
-			s = &scorer{
-				client: mockClient,
-				config: Config{},
-				prompt: batchScorePrompt,
-			}
+			s = scorer.NewWithClient(mockClient)
 
 			scored, err := s.ScorePosts(ctx, largePosts)
 			Expect(err).NotTo(HaveOccurred())
@@ -291,12 +276,3 @@ var _ = Describe("Scorer", func() {
 		})
 	})
 })
-
-// Helper functions
-func newWithClient(client *mockOpenAIClient) Scorer {
-	return &scorer{
-		client: client,
-		config: Config{},
-		prompt: batchScorePrompt,
-	}
-}

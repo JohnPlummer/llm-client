@@ -27,7 +27,7 @@ type Config struct {
 	MaxConcurrent int
 }
 
-// OpenAIClient interface allows us to mock the OpenAI API
+// OpenAIClient defines the interface for interacting with OpenAI API
 type OpenAIClient interface {
 	CreateChatCompletion(context.Context, openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
 }
@@ -51,4 +51,4 @@ type scoreItem struct {
 	Title  string  `json:"title"`
 	Score  float64 `json:"score"`
 	Reason string  `json:"reason"`
-} 
+}

@@ -3,7 +3,6 @@ package scorer
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog" // Using standard library slog
 	"strings"
@@ -11,41 +10,6 @@ import (
 	"github.com/JohnPlummer/reddit-client/reddit"
 	"github.com/sashabaranov/go-openai"
 )
-
-// Scorer provides methods to score Reddit posts using ChatGPT
-type Scorer interface {
-	// ScorePosts evaluates and scores a slice of Reddit posts
-	ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredPost, error)
-}
-
-// ScoredPost represents a Reddit post with its AI-generated score
-type ScoredPost struct {
-	Post   reddit.Post
-	Score  float64
-	Reason string
-	// We could add additional fields like:
-	// Reasoning string    // explanation for the score
-	// Confidence float64 // how confident the AI is in its scoring
-}
-
-// Config holds the configuration for the scorer
-type Config struct {
-	OpenAIKey     string
-	PromptText    string // If empty, will use default prompt
-	MaxConcurrent int    // for rate limiting
-}
-
-// OpenAIClient interface allows us to mock the OpenAI API
-type OpenAIClient interface {
-	CreateChatCompletion(context.Context, openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
-}
-
-// scorer implements the Scorer interface
-type scorer struct {
-	client OpenAIClient
-	config Config
-	prompt string
-}
 
 // New creates a new instance of the Scorer
 func New(cfg Config) (Scorer, error) {
@@ -66,68 +30,6 @@ func New(cfg Config) (Scorer, error) {
 	}, nil
 }
 
-// ErrMissingAPIKey is returned when no OpenAI API key is provided
-var ErrMissingAPIKey = errors.New("OpenAI API key is required")
-
-const (
-	maxBatchSize = 10                                            // Maximum number of posts to process in one API call
-	scorePrompt  = `Score each of the following Reddit posts...` // existing prompt
-)
-
-const batchScorePrompt = `Score each of the following Reddit post titles and output as JSON. Consider these categories:
-- Regular venues (restaurants, bars, cafes, museums, galleries, etc.)
-- Local attractions and points of interest
-- Entertainment events (music, theatre, comedy, sports, etc.)
-- Cultural events and festivals
-- Markets and shopping areas
-- Parks and outdoor spaces
-- Family-friendly activities
-- Seasonal or special events
-- Hidden gems and local recommendations
-
-Scoring guidelines:
-90-100: Title directly references specific venues, events, or activities
-70-89: Title suggests discussion of activities or places
-40-69: Title might contain some relevant information
-1-39: Title has low probability of relevant information
-0: Title clearly indicates no relevant activity information
-
-CRITICAL RULES:
-1. Output must be ONLY valid JSON with no markdown or other formatting
-2. Response must follow this exact format:
-{
-  "version": "1.0",
-  "scores": [
-    {
-      "post_id": "<id>",
-      "title": "<title>",
-      "score": <0-100>,
-      "reason": "<explanation>"
-    }
-  ]
-}
-3. Every post must receive a score and reason
-4. Empty/invalid posts must get score 0
-5. Never skip posts - score everything
-6. Score must be between 0-100
-7. Include clear reasoning for each score
-
-Posts to score:
-%s`
-
-// Add new types for JSON parsing
-type scoreResponse struct {
-	Version string      `json:"version"`
-	Scores  []scoreItem `json:"scores"`
-}
-
-type scoreItem struct {
-	PostID string  `json:"post_id"`
-	Title  string  `json:"title"`
-	Score  float64 `json:"score"`
-	Reason string  `json:"reason"`
-}
-
 func formatPostsForBatch(posts []reddit.Post) string {
 	var sb strings.Builder
 	for _, post := range posts {
@@ -136,7 +38,6 @@ func formatPostsForBatch(posts []reddit.Post) string {
 	return sb.String()
 }
 
-// Update parseBatchResponse to handle JSON
 func parseBatchResponse(response string, posts []reddit.Post) ([]ScoredPost, error) {
 	var resp scoreResponse
 	if err := json.Unmarshal([]byte(response), &resp); err != nil {
@@ -233,8 +134,6 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 
 		allResults = append(allResults, batchResults...)
 
-		// Optional: add delay between batches to respect rate limits
-		// time.Sleep(100 * time.Millisecond)
 	}
 
 	return allResults, nil

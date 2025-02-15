@@ -1,0 +1,54 @@
+package scorer
+
+import (
+	"context"
+	"errors"
+
+	"github.com/JohnPlummer/reddit-client/reddit"
+	"github.com/sashabaranov/go-openai"
+)
+
+// Scorer provides methods to score Reddit posts using ChatGPT
+type Scorer interface {
+	ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredPost, error)
+}
+
+// ScoredPost represents a Reddit post with its AI-generated score
+type ScoredPost struct {
+	Post   reddit.Post
+	Score  float64
+	Reason string
+}
+
+// Config holds the configuration for the scorer
+type Config struct {
+	OpenAIKey     string
+	PromptText    string
+	MaxConcurrent int
+}
+
+// OpenAIClient interface allows us to mock the OpenAI API
+type OpenAIClient interface {
+	CreateChatCompletion(context.Context, openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error)
+}
+
+type scorer struct {
+	client OpenAIClient
+	config Config
+	prompt string
+}
+
+// ErrMissingAPIKey is returned when no OpenAI API key is provided
+var ErrMissingAPIKey = errors.New("OpenAI API key is required")
+
+type scoreResponse struct {
+	Version string      `json:"version"`
+	Scores  []scoreItem `json:"scores"`
+}
+
+type scoreItem struct {
+	PostID string  `json:"post_id"`
+	Title  string  `json:"title"`
+	Score  float64 `json:"score"`
+	Reason string  `json:"reason"`
+} 

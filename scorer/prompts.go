@@ -2,7 +2,7 @@ package scorer
 
 const maxBatchSize = 10
 
-const batchScorePrompt = `Score each of the following Reddit post titles and output as JSON. Consider these categories:
+const batchScorePrompt = `Score each of the following Reddit post titles. Consider these categories:
 - Regular venues (restaurants, bars, cafes, museums, galleries, etc.)
 - Local attractions and points of interest
 - Entertainment events (music, theatre, comedy, sports, etc.)
@@ -19,26 +19,6 @@ Scoring guidelines:
 40-69: Title might contain some relevant information
 1-39: Title has low probability of relevant information
 0: Title clearly indicates no relevant activity information
-
-CRITICAL RULES:
-1. Output must be ONLY valid JSON with no markdown or other formatting
-2. Response must follow this exact format:
-{
-  "version": "1.0",
-  "scores": [
-    {
-      "post_id": "<id>",
-      "title": "<title>",
-      "score": <0-100>,
-      "reason": "<explanation>"
-    }
-  ]
-}
-3. Every post must receive a score and reason
-4. Empty/invalid posts must get score 0
-5. Never skip posts - score everything
-6. Score must be between 0-100
-7. Include clear reasoning for each score
 
 Posts to score:
 %s`

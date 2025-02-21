@@ -91,7 +91,7 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 				Messages: []openai.ChatCompletionMessage{
 					{
 						Role:    openai.ChatMessageRoleSystem,
-						Content: "You are a content analyzer focused on identifying posts containing location-based recommendations and events. Score each post based on its relevance to local activities.",
+						Content: "You are a content analyzer focused on identifying posts containing location-based recommendations and events. Score each post based on its relevance to local activities. Scores must be integers between 0 and 100, where 0 means completely irrelevant.",
 					},
 					{
 						Role:    openai.ChatMessageRoleUser,
@@ -124,8 +124,9 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 
 		scores := make(map[string]scoreItem)
 		for _, score := range result.Scores {
+			// Validate that scores are within the required range
 			if score.Score < 0 || score.Score > 100 {
-				return nil, fmt.Errorf("invalid score %f for post %s", score.Score, score.PostID)
+				return nil, fmt.Errorf("invalid score %d for post %s: score must be between 0 and 100", score.Score, score.PostID)
 			}
 			scores[score.PostID] = score
 		}

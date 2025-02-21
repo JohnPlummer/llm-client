@@ -16,7 +16,7 @@ type Scorer interface {
 // ScoredPost represents a Reddit post with its AI-generated score
 type ScoredPost struct {
 	Post   reddit.Post
-	Score  float64
+	Score  int
 	Reason string
 }
 
@@ -47,8 +47,8 @@ type scoreResponse struct {
 }
 
 type scoreItem struct {
-	PostID string  `json:"post_id"`
-	Title  string  `json:"title"`
-	Score  float64 `json:"score"`
-	Reason string  `json:"reason"`
+	PostID string `json:"post_id"`
+	Title  string `json:"title"`
+	Score  int    `json:"score"`
+	Reason string `json:"reason"`
 }

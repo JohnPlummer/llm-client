@@ -208,7 +208,7 @@ var _ = Describe("Scorer", func() {
 			scored, err := s.ScorePosts(ctx, posts)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(scored).To(HaveLen(1))
-			Expect(scored[0].Score).To(Equal(85.0))
+			Expect(scored[0].Score).To(Equal(85))
 			Expect(scored[0].Reason).To(Equal("Custom prompt test"))
 		})
 

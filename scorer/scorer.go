@@ -76,7 +76,11 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 		batch := posts[i:end]
 		prompt := fmt.Sprintf(s.prompt, formatPostsForBatch(batch))
 
-		slog.Debug("Sending prompt", "prompt", prompt)
+		// Log start of batch processing
+		slog.Info("Processing batch of posts",
+			"batch_start", i,
+			"batch_end", end-1,
+			"batch_size", len(batch))
 
 		// Generate schema from our response type
 		schema, err := jsonschema.GenerateSchemaForType(scoreResponse{})
@@ -115,8 +119,6 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 			return nil, fmt.Errorf("no response from OpenAI for batch %d-%d", i, end-1)
 		}
 
-		slog.Debug("Raw response from OpenAI", "response", resp.Choices[0].Message.Content)
-
 		var result scoreResponse
 		if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal response: %w", err)
@@ -144,7 +146,13 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 			}
 		}
 
-		// Add debug logging for each scored post
+		// Log batch scoring results
+		slog.Info("Batch scoring completed",
+			"batch_start", i,
+			"batch_end", end-1,
+			"posts_scored", len(results))
+
+		// Log individual post scores at info level
 		for _, post := range results {
 			slog.Debug("Post scored",
 				"id", post.Post.ID,
@@ -155,6 +163,10 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 
 		allResults = append(allResults, results...)
 	}
+
+	slog.Info("All posts scored successfully",
+		"total_posts", len(posts),
+		"total_batches", (len(posts)+maxBatchSize-1)/maxBatchSize)
 
 	return allResults, nil
 }

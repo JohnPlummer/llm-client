@@ -62,11 +62,40 @@ func main() {
 	}
 
 	// Read posts from CSV file
-	file, err := os.Open("example_posts.csv")
-	// file, err := os.Open("example_posts_edge_cases.csv")
+	posts, err := loadPosts("example_posts.csv")
 	if err != nil {
-		slog.Error("Error opening posts file", "error", err)
+		slog.Error("Error loading posts", "error", err)
 		os.Exit(1)
+	}
+
+	// Load comments and associate them with posts
+	if err := loadComments("example_comments.csv", posts); err != nil {
+		slog.Error("Error loading comments", "error", err)
+		os.Exit(1)
+	}
+
+	// Score the posts
+	var postSlice []reddit.Post
+	for _, p := range posts {
+		postSlice = append(postSlice, *p)
+	}
+	scoredPosts, err := s.ScorePosts(context.Background(), postSlice)
+	if err != nil {
+		slog.Error("Failed to score posts", "error", err)
+		os.Exit(1)
+	}
+
+	// Print results
+	for _, post := range scoredPosts {
+		fmt.Printf("Post: %s\nScore: %d\nReason: %s\n\n", post.Post.Title, post.Score, post.Reason)
+	}
+}
+
+// loadPosts reads posts from a CSV file
+func loadPosts(filename string) (map[string]*reddit.Post, error) {
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("opening posts file: %w", err)
 	}
 	defer file.Close()
 
@@ -75,36 +104,57 @@ func main() {
 	reader.LazyQuotes = true
 
 	// Skip header row
-	_, err = reader.Read()
-	if err != nil {
-		slog.Error("Error reading CSV header", "error", err)
-		os.Exit(1)
+	if _, err := reader.Read(); err != nil {
+		return nil, fmt.Errorf("reading CSV header: %w", err)
 	}
 
-	var posts []reddit.Post
+	posts := make(map[string]*reddit.Post)
 	records, err := reader.ReadAll()
 	if err != nil {
-		slog.Error("Error reading CSV records", "error", err)
-		os.Exit(1)
+		return nil, fmt.Errorf("reading CSV records: %w", err)
 	}
 
 	for _, record := range records {
-		posts = append(posts, reddit.Post{
+		posts[record[0]] = &reddit.Post{
 			ID:       record[0],
 			Title:    record[1],
 			SelfText: record[2],
-		})
+		}
 	}
 
-	// Score the posts
-	scoredPosts, err := s.ScorePosts(context.Background(), posts)
+	return posts, nil
+}
+
+// loadComments reads comments from a CSV file and associates them with posts
+func loadComments(filename string, posts map[string]*reddit.Post) error {
+	file, err := os.Open(filename)
 	if err != nil {
-		slog.Error("Failed to score posts", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("opening comments file: %w", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	reader.TrimLeadingSpace = true
+	reader.LazyQuotes = true
+
+	// Skip header row
+	if _, err := reader.Read(); err != nil {
+		return fmt.Errorf("reading CSV header: %w", err)
 	}
 
-	// Print results
-	for _, post := range scoredPosts {
-		fmt.Printf("Post: %s\nScore: %.2f\nReason: %s\n\n", post.Post.Title, post.Score, post.Reason)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return fmt.Errorf("reading CSV records: %w", err)
 	}
+
+	for _, record := range records {
+		postID, text := record[0], record[1]
+		if post, exists := posts[postID]; exists {
+			post.Comments = append(post.Comments, reddit.Comment{
+				Body: text,
+			})
+		}
+	}
+
+	return nil
 }

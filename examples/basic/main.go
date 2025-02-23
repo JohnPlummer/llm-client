@@ -75,9 +75,9 @@ func main() {
 	}
 
 	// Score the posts
-	var postSlice []reddit.Post
+	var postSlice []*reddit.Post
 	for _, p := range posts {
-		postSlice = append(postSlice, *p)
+		postSlice = append(postSlice, p)
 	}
 	scoredPosts, err := s.ScorePosts(context.Background(), postSlice)
 	if err != nil {

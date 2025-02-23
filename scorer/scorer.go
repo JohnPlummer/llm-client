@@ -66,9 +66,9 @@ func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
 	return s
 }
 
-func formatPostsForBatch(posts []reddit.Post) string {
+func formatPostsForBatch(posts []*reddit.Post) string {
 	input := struct {
-		Posts []reddit.Post `json:"posts"`
+		Posts []*reddit.Post `json:"posts"`
 	}{
 		Posts: posts,
 	}
@@ -85,12 +85,12 @@ func formatPostsForBatch(posts []reddit.Post) string {
 }
 
 // ScorePosts evaluates and scores a slice of Reddit posts
-func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredPost, error) {
+func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error) {
 	if len(posts) == 0 {
 		return nil, nil
 	}
 
-	var allResults []ScoredPost
+	var allResults []*ScoredPost
 
 	// Process posts in batches of maxBatchSize
 	for i := 0; i < len(posts); i += maxBatchSize {
@@ -159,13 +159,13 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 			scores[score.PostID] = score
 		}
 
-		results := make([]ScoredPost, len(batch))
+		results := make([]*ScoredPost, len(batch))
 		for i, post := range batch {
 			score, exists := scores[post.ID]
 			if !exists {
 				return nil, fmt.Errorf("missing score for post %s: %q", post.ID, post.Title)
 			}
-			results[i] = ScoredPost{
+			results[i] = &ScoredPost{
 				Post:   post,
 				Score:  score.Score,
 				Reason: score.Reason,

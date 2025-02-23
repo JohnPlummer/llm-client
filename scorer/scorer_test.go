@@ -38,7 +38,7 @@ var _ = Describe("Scorer", func() {
 	var (
 		mockClient *mockOpenAIClient
 		s          scorer.Scorer
-		posts      []reddit.Post
+		posts      []*reddit.Post
 		ctx        context.Context
 	)
 
@@ -46,7 +46,7 @@ var _ = Describe("Scorer", func() {
 		ctx = context.Background()
 		mockClient = &mockOpenAIClient{}
 		s = scorer.NewWithClient(mockClient)
-		posts = []reddit.Post{
+		posts = []*reddit.Post{
 			{
 				ID:       "post1",
 				Title:    "Test Post 1",
@@ -214,9 +214,9 @@ var _ = Describe("Scorer", func() {
 
 		It("should handle more than maxBatchSize posts", func() {
 			// Create 15 test posts
-			largePosts := make([]reddit.Post, 15)
+			largePosts := make([]*reddit.Post, 15)
 			for i := range largePosts {
-				largePosts[i] = reddit.Post{
+				largePosts[i] = &reddit.Post{
 					ID:       fmt.Sprintf("post%d", i+1),
 					Title:    fmt.Sprintf("Test Post %d", i+1),
 					SelfText: "Content",

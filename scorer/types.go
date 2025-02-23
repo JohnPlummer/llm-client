@@ -10,12 +10,12 @@ import (
 
 // Scorer provides methods to score Reddit posts using ChatGPT
 type Scorer interface {
-	ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredPost, error)
+	ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error)
 }
 
 // ScoredPost represents a Reddit post with its AI-generated score
 type ScoredPost struct {
-	Post   reddit.Post
+	Post   *reddit.Post
 	Score  int
 	Reason string
 }

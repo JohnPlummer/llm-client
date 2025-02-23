@@ -2,15 +2,31 @@ package scorer
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
-	"log/slog" // Using standard library slog
-	"strings"
+	"log/slog"
+	"os"
 
 	"github.com/JohnPlummer/reddit-client/reddit"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
+
+//go:embed prompts/*.txt
+var promptFS embed.FS
+
+var systemPrompt string
+
+func init() {
+	// Load system prompt during package initialization
+	promptBytes, err := promptFS.ReadFile("prompts/system_prompt.txt")
+	if err != nil {
+		slog.Error("failed to load system prompt", "error", err)
+		os.Exit(1)
+	}
+	systemPrompt = string(promptBytes)
+}
 
 // New creates a new instance of the Scorer
 func New(cfg Config) (Scorer, error) {
@@ -51,11 +67,21 @@ func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
 }
 
 func formatPostsForBatch(posts []reddit.Post) string {
-	var sb strings.Builder
-	for _, post := range posts {
-		fmt.Fprintf(&sb, "%s %q: %s\n\n", post.ID, post.Title, post.SelfText)
+	input := struct {
+		Posts []reddit.Post `json:"posts"`
+	}{
+		Posts: posts,
 	}
-	return sb.String()
+
+	// Using json.MarshalIndent for better readability in the prompt
+	jsonData, err := json.MarshalIndent(input, "", "  ")
+	if err != nil {
+		// This should never happen when marshaling reddit.Post
+		slog.Error("failed to marshal posts", "error", err)
+		return ""
+	}
+
+	return string(jsonData)
 }
 
 // ScorePosts evaluates and scores a slice of Reddit posts
@@ -95,7 +121,7 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []reddit.Post) ([]ScoredP
 				Messages: []openai.ChatCompletionMessage{
 					{
 						Role:    openai.ChatMessageRoleSystem,
-						Content: "You are a content analyzer focused on identifying posts containing location-based recommendations and events. Score each post based on its relevance to local activities. Scores must be integers between 0 and 100, where 0 means completely irrelevant.",
+						Content: systemPrompt,
 					},
 					{
 						Role:    openai.ChatMessageRoleUser,

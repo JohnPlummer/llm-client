@@ -17,24 +17,11 @@ Scoring guidelines:
 0: Title clearly indicates no relevant activity information
 
 CRITICAL RULES:
-1. Output must be ONLY valid JSON with no markdown or other formatting
-2. Response must follow this exact format:
-{
-  "version": "1.0",
-  "scores": [
-    {
-      "post_id": "<id>",
-      "title": "<title>",
-      "score": <0-100>,
-      "reason": "<explanation>"
-    }
-  ]
-}
-3. Every post must receive a score and reason
-4. Empty/invalid posts must get score 0
-5. Never skip posts - score everything
-6. Score must be between 0-100
-7. Include clear reasoning for each score
+1. Every post must receive a score and reason
+2. Empty/invalid posts must get score 0
+3. Never skip posts - score everything
+4. Score must be between 0-100
+5. Include clear reasoning for each score
 
 Posts to score:
 %s 

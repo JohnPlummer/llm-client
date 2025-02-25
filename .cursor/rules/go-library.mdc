@@ -1,0 +1,123 @@
+---
+description: Structuring Golang libraries
+globs: 
+---
+name: "Go Package Library"
+patterns: 
+  - "**/go.mod"
+
+folderStructure:
+  root:
+    folders:
+      examples:
+        description: "Example usage of the package"
+        patterns: ["**/*.go"]
+      internal:
+        description: "Private package code not meant for external use"
+        patterns: ["**/*.go"]
+    
+    files:
+      required:
+        - go.mod
+        - go.sum
+        - README.md
+        - LICENSE
+        - .gitignore
+      recommended:
+        - doc.go
+        - package_name.go
+        - package_name_test.go
+        - .golangci.yml
+
+codeStandards:
+  packageLayout:
+    description: "Keep main package code in root directory"
+    mainFiles:
+      - package_name.go: "Main package implementation"
+      - package_name_test.go: "Package tests"
+      - doc.go: "Package documentation"
+    
+  logging:
+    recommendation: "Accept slog.Logger as a parameter, don't initialize internally"
+    example: |
+      type Client struct {
+          logger *slog.Logger
+      }
+      
+      func WithLogger(logger *slog.Logger) Option {
+          return func(c *Client) { c.logger = logger }
+      }
+
+  configuration:
+    recommendation: "Use configuration structs over environment variables"
+    example: |
+      type Config struct {
+          Timeout time.Duration
+          RetryCount int
+      }
+
+directoryStructure: |
+  package-name/
+  ├── .gitignore
+  ├── LICENSE
+  ├── README.md
+  ├── doc.go
+  ├── examples/
+  │   ├── README.md
+  │   └── basic/
+  │       └── main.go
+  ├── go.mod
+  ├── go.sum
+  ├── internal/
+  │   └── helper.go
+  ├── package_name.go
+  └── package_name_test.go
+
+readmeTemplate:
+  sections:
+    - name: "Installation"
+      content: "go get github.com/JohnPlummer/package-name"
+    - name: "Usage"
+      content: "Basic example of package usage"
+    - name: "Documentation"
+      content: "Link to pkg.go.dev documentation"
+    - name: "Examples"
+      content: "Reference to examples directory"
+    - name: "Contributing"
+      content: "Guidelines for contributions"
+    - name: "License"
+      content: "License information"
+
+testingStandards:
+  patterns:
+    - "*_test.go"
+  requirements:
+    - "Tests alongside implementation files"
+    - "Table-driven tests when appropriate"
+    - "Use testdata directory for test fixtures"
+    - "Benchmark tests for performance-critical code"
+
+lintingConfig:
+  filename: .golangci.yml
+  recommended:
+    linters:
+      enable:
+        - gofmt
+        - golint
+        - govet
+        - errcheck
+        - staticcheck
+
+gitignoreTemplate:
+  patterns:
+    - "*.exe"
+    - "*.exe~"
+    - "*.dll"
+    - "*.so"
+    - "*.dylib"
+    - "*.test"
+    - "*.out"
+    - ".env"
+    - ".idea/"
+    - ".vscode/"
+    - "vendor/"

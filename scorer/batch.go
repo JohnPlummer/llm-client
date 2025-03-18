@@ -26,7 +26,7 @@ func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post) ([]*Sco
 		return nil, err
 	}
 
-	scores, err := s.parseResponse(resp)
+	scores, err := s.parseResponse(resp, len(batch))
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +69,17 @@ func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema
 	return &resp, nil
 }
 
-func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse) (map[string]scoreItem, error) {
+func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPostCount int) (map[string]scoreItem, error) {
 	var result scoreResponse
 	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
 		return nil, fmt.Errorf("unmarshaling response: %w", err)
+	}
+
+	// Check if we received scores for all expected posts
+	if len(result.Scores) < expectedPostCount {
+		slog.WarnContext(context.Background(), "incomplete scores from OpenAI",
+			"expected_count", expectedPostCount,
+			"received_count", len(result.Scores))
 	}
 
 	scores := make(map[string]scoreItem)
@@ -91,8 +98,18 @@ func (s *scorer) createScoredPosts(batch []*reddit.Post, scores map[string]score
 	for i, post := range batch {
 		score, exists := scores[post.ID]
 		if !exists {
-			return nil, fmt.Errorf("missing score for post %s: %q", post.ID, post.Title)
+			slog.WarnContext(context.Background(), "missing score from OpenAI response, assigning default score",
+				"post_id", post.ID,
+				"title", post.Title)
+
+			results[i] = &ScoredPost{
+				Post:   post,
+				Score:  0,
+				Reason: "No score provided by model - automatically assigned lowest relevance score",
+			}
+			continue
 		}
+
 		results[i] = &ScoredPost{
 			Post:   post,
 			Score:  score.Score,

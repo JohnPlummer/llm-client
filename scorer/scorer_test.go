@@ -182,9 +182,12 @@ var _ = Describe("Scorer", func() {
 			}
 			s = scorer.NewWithClient(mockClient)
 
-			_, err := s.ScorePosts(ctx, posts)
-			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("missing score"))
+			scored, err := s.ScorePosts(ctx, posts)
+			// Now we expect no error, but a post with score 0
+			Expect(err).NotTo(HaveOccurred())
+			Expect(scored).To(HaveLen(1))
+			Expect(scored[0].Score).To(Equal(0))
+			Expect(scored[0].Reason).To(ContainSubstring("No score provided by model"))
 		})
 
 		It("should use custom prompt when provided", func() {

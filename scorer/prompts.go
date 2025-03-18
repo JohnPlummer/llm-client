@@ -20,5 +20,8 @@ Scoring guidelines:
 1-39: Title has low probability of relevant information
 0: Title clearly indicates no relevant activity information
 
+IMPORTANT: You MUST score EVERY post in the JSON input. Do not skip any posts for any reason.
+Include EVERY post ID in your response, even for posts that seem completely irrelevant.
+
 Posts to score:
 %s`

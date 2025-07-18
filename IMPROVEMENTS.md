@@ -138,7 +138,7 @@ After implementation:
 
 ---
 
-## Step 5: Add Input Validation
+## ✅ Step 5: Add Input Validation
 
 **Problem**: No validation for nil posts or empty slices.
 

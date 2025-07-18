@@ -80,8 +80,21 @@ func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
 
 // ScorePosts evaluates and scores a slice of Reddit posts
 func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error) {
+	if posts == nil {
+		return nil, errors.New("posts cannot be nil")
+	}
+	
 	if len(posts) == 0 {
-		return nil, nil
+		return []*ScoredPost{}, nil
+	}
+	
+	for i, post := range posts {
+		if post == nil {
+			return nil, fmt.Errorf("post at index %d is nil", i)
+		}
+		if post.ID == "" {
+			return nil, fmt.Errorf("post at index %d has empty ID", i)
+		}
 	}
 
 	var allResults []*ScoredPost

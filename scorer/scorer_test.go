@@ -103,10 +103,16 @@ var _ = Describe("Scorer", func() {
 			s = scorer.NewWithClient(mockClient)
 		})
 
-		It("should return nil for empty posts", func() {
-			scored, err := s.ScorePosts(ctx, nil)
+		It("should return empty slice for empty posts", func() {
+			scored, err := s.ScorePosts(ctx, []*reddit.Post{})
 			Expect(err).NotTo(HaveOccurred())
-			Expect(scored).To(BeNil())
+			Expect(scored).To(Equal([]*scorer.ScoredPost{}))
+		})
+		
+		It("should return error for nil posts", func() {
+			_, err := s.ScorePosts(ctx, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("posts cannot be nil"))
 		})
 
 		It("should handle API errors", func() {

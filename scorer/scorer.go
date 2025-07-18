@@ -5,7 +5,6 @@ import (
 	"embed"
 	"fmt"
 	"log/slog"
-	"os"
 
 	"github.com/JohnPlummer/reddit-client/reddit"
 	"github.com/sashabaranov/go-openai"
@@ -15,19 +14,24 @@ import (
 var promptFS embed.FS
 
 var systemPrompt string
+var initError error
 
 func init() {
 	// Load system prompt during package initialization
 	promptBytes, err := promptFS.ReadFile("prompts/system_prompt.txt")
 	if err != nil {
-		slog.Error("failed to load system prompt", "error", err)
-		os.Exit(1)
+		initError = fmt.Errorf("failed to load system prompt: %w", err)
+		return
 	}
 	systemPrompt = string(promptBytes)
 }
 
 // New creates a new instance of the Scorer
 func New(cfg Config) (Scorer, error) {
+	if initError != nil {
+		return nil, initError
+	}
+	
 	if cfg.OpenAIKey == "" {
 		return nil, ErrMissingAPIKey
 	}

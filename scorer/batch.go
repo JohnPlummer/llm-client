@@ -34,30 +34,33 @@ func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post) ([]*Sco
 	return s.createScoredPosts(batch, scores)
 }
 
-func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema *jsonschema.Definition) (*openai.ChatCompletionResponse, error) {
-	resp, err := s.client.CreateChatCompletion(
-		ctx,
-		openai.ChatCompletionRequest{
-			Model: openai.GPT4oMini,
-			Messages: []openai.ChatCompletionMessage{
-				{
-					Role:    openai.ChatMessageRoleSystem,
-					Content: systemPrompt,
-				},
-				{
-					Role:    openai.ChatMessageRoleUser,
-					Content: prompt,
-				},
+func (s *scorer) buildChatRequest(prompt string, schema *jsonschema.Definition) openai.ChatCompletionRequest {
+	return openai.ChatCompletionRequest{
+		Model: openai.GPT4oMini,
+		Messages: []openai.ChatCompletionMessage{
+			{
+				Role:    openai.ChatMessageRoleSystem,
+				Content: systemPrompt,
 			},
-			ResponseFormat: &openai.ChatCompletionResponseFormat{
-				Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
-				JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
-					Schema: schema,
-					Name:   "post_scoring",
-				},
+			{
+				Role:    openai.ChatMessageRoleUser,
+				Content: prompt,
 			},
 		},
-	)
+		ResponseFormat: &openai.ChatCompletionResponseFormat{
+			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
+			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Schema: schema,
+				Name:   "post_scoring",
+			},
+		},
+	}
+}
+
+func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema *jsonschema.Definition) (*openai.ChatCompletionResponse, error) {
+	req := s.buildChatRequest(prompt, schema)
+	
+	resp, err := s.client.CreateChatCompletion(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
 	}
@@ -69,12 +72,7 @@ func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema
 	return &resp, nil
 }
 
-func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPostCount int) (map[string]scoreItem, error) {
-	var result scoreResponse
-	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal OpenAI response (expected %d posts): %w", expectedPostCount, err)
-	}
-
+func (s *scorer) validateResponse(result scoreResponse, expectedPostCount int) error {
 	// Check if we received scores for all expected posts
 	if len(result.Scores) < expectedPostCount {
 		slog.WarnContext(context.Background(), "incomplete scores from OpenAI",
@@ -82,11 +80,27 @@ func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPost
 			"received_count", len(result.Scores))
 	}
 
-	scores := make(map[string]scoreItem)
 	for _, score := range result.Scores {
 		if score.Score < 0 || score.Score > 100 {
-			return nil, fmt.Errorf("invalid score %d for post %s: score must be between 0 and 100", score.Score, score.PostID)
+			return fmt.Errorf("invalid score %d for post %s: score must be between 0 and 100", score.Score, score.PostID)
 		}
+	}
+	
+	return nil
+}
+
+func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPostCount int) (map[string]scoreItem, error) {
+	var result scoreResponse
+	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal OpenAI response (expected %d posts): %w", expectedPostCount, err)
+	}
+
+	if err := s.validateResponse(result, expectedPostCount); err != nil {
+		return nil, err
+	}
+
+	scores := make(map[string]scoreItem)
+	for _, score := range result.Scores {
 		scores[score.PostID] = score
 	}
 

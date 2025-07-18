@@ -179,7 +179,7 @@ After implementation:
 
 ---
 
-## Step 6: Extract Helper Functions
+## ✅ Step 6: Extract Helper Functions
 
 **Problem**: Complex functions that do too many things.
 

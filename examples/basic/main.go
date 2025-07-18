@@ -36,42 +36,63 @@ func main() {
 	}
 
 	// Initialize logger
-	opts := &slog.HandlerOptions{
-		Level: getLogLevel(os.Getenv("LOG_LEVEL")),
-	}
-	logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
-	slog.SetDefault(logger)
+	setupLogger()
 
 	// Read custom prompt
-	promptText, err := os.ReadFile("custom_prompt.txt")
+	promptText, err := readPromptFile("custom_prompt.txt")
 	if err != nil {
 		slog.Error("Error reading prompt file", "error", err)
 		os.Exit(1)
 	}
 
 	// Initialize the scorer
-	cfg := scorer.Config{
-		OpenAIKey:  os.Getenv("OPENAI_API_KEY"),
-		PromptText: string(promptText),
-	}
-
-	s, err := scorer.New(cfg)
+	s, err := setupScorer(promptText)
 	if err != nil {
 		slog.Error("Failed to create scorer", "error", err)
 		os.Exit(1)
 	}
 
+	// Load and score posts
+	if err := processAndScorePosts(s); err != nil {
+		slog.Error("Failed to process posts", "error", err)
+		os.Exit(1)
+	}
+}
+
+func setupLogger() {
+	opts := &slog.HandlerOptions{
+		Level: getLogLevel(os.Getenv("LOG_LEVEL")),
+	}
+	logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
+	slog.SetDefault(logger)
+}
+
+func readPromptFile(filename string) (string, error) {
+	promptText, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("reading prompt file: %w", err)
+	}
+	return string(promptText), nil
+}
+
+func setupScorer(promptText string) (scorer.Scorer, error) {
+	cfg := scorer.Config{
+		OpenAIKey:  os.Getenv("OPENAI_API_KEY"),
+		PromptText: promptText,
+	}
+	return scorer.New(cfg)
+}
+
+func processAndScorePosts(s scorer.Scorer) error {
 	// Read posts from CSV file
 	posts, err := loadPosts("example_posts.csv")
 	if err != nil {
-		slog.Error("Error loading posts", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("loading posts: %w", err)
 	}
 
 	// Load comments and associate them with posts
 	if err := loadComments("example_comments.csv", posts); err != nil {
-		slog.Error("Error loading comments", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("loading comments: %w", err)
 	}
 
 	// Score the posts
@@ -81,11 +102,15 @@ func main() {
 	}
 	scoredPosts, err := s.ScorePosts(context.Background(), postSlice)
 	if err != nil {
-		slog.Error("Failed to score posts", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("scoring posts: %w", err)
 	}
 
 	// Print results
+	outputResults(scoredPosts)
+	return nil
+}
+
+func outputResults(scoredPosts []*scorer.ScoredPost) {
 	for _, post := range scoredPosts {
 		fmt.Printf("Post: %s\nScore: %d\nReason: %s\n\n", post.Post.Title, post.Score, post.Reason)
 	}

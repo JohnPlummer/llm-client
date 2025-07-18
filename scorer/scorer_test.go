@@ -114,6 +114,42 @@ var _ = Describe("Scorer", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("posts cannot be nil"))
 		})
+		
+		It("should return error for custom prompt without placeholder", func() {
+			cfg := scorer.Config{
+				OpenAIKey:  "test-key",
+				PromptText: "Rate these posts without placeholder",
+			}
+			_, err := scorer.New(cfg)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must contain %s placeholder"))
+		})
+		
+		It("should return error for negative MaxConcurrent", func() {
+			cfg := scorer.Config{
+				OpenAIKey:     "test-key",
+				MaxConcurrent: -1,
+			}
+			_, err := scorer.New(cfg)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("must be non-negative"))
+		})
+		
+		It("should return error for post with empty ID", func() {
+			posts := []*reddit.Post{
+				{ID: "", Title: "Test Post"},
+			}
+			_, err := s.ScorePosts(ctx, posts)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("empty ID"))
+		})
+		
+		It("should return error for post that is nil", func() {
+			posts := []*reddit.Post{nil}
+			_, err := s.ScorePosts(ctx, posts)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("is nil"))
+		})
 
 		It("should handle API errors", func() {
 			mockClient := &mockOpenAIClient{

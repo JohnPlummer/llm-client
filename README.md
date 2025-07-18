@@ -95,6 +95,18 @@ Critical requirements:
 
 See `examples/basic/custom_prompt.txt` for a complete example prompt.
 
+## Documentation
+
+For comprehensive documentation, see the `docs/` directory:
+
+- **[Project Overview](docs/project-overview.md)** - Architecture, features, and use cases
+- **[Development Setup](docs/development-setup.md)** - Installation, dependencies, and coding standards  
+- **[Package Usage](docs/package-usage.md)** - Complete API reference and examples
+- **[Key Components](docs/key-components.md)** - Core interfaces and implementation details
+- **[Deployment Guide](docs/deployment-guide.md)** - Production deployment and configuration
+- **[Troubleshooting](docs/troubleshooting.md)** - Common issues and solutions
+- **[Recent Changes](docs/recent-changes.md)** - Latest updates and improvements
+
 ## Examples
 
-Check the `examples` directory for complete usage examples.
+Check the `examples` directory for complete usage examples, including CSV data loading and custom prompt configuration.

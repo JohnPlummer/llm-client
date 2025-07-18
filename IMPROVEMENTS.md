@@ -243,7 +243,7 @@ After implementation:
 
 ---
 
-## Step 9: Create Custom Prompt Example
+## ✅ Step 9: Create Custom Prompt Example
 
 **Problem**: Custom prompt example file is referenced but missing.
 

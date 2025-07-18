@@ -156,9 +156,3 @@ func formatPostsForBatch(posts []*reddit.Post) string {
 	return string(jsonData)
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

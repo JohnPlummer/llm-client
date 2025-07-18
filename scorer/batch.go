@@ -18,17 +18,17 @@ func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post) ([]*Sco
 
 	schema, err := jsonschema.GenerateSchemaForType(scoreResponse{})
 	if err != nil {
-		return nil, fmt.Errorf("generating schema: %w", err)
+		return nil, fmt.Errorf("failed to generate JSON schema for batch of %d posts: %w", len(batch), err)
 	}
 
 	resp, err := s.createChatCompletion(ctx, prompt, schema)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create chat completion for batch of %d posts: %w", len(batch), err)
 	}
 
 	scores, err := s.parseResponse(resp, len(batch))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to parse response for batch of %d posts: %w", len(batch), err)
 	}
 
 	return s.createScoredPosts(batch, scores)
@@ -59,11 +59,11 @@ func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema
 		},
 	)
 	if err != nil {
-		return nil, fmt.Errorf("OpenAI API error: %w", err)
+		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
 	}
 
 	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no response from OpenAI")
+		return nil, fmt.Errorf("OpenAI returned empty response with no choices")
 	}
 
 	return &resp, nil
@@ -72,7 +72,7 @@ func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema
 func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPostCount int) (map[string]scoreItem, error) {
 	var result scoreResponse
 	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
-		return nil, fmt.Errorf("unmarshaling response: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal OpenAI response (expected %d posts): %w", expectedPostCount, err)
 	}
 
 	// Check if we received scores for all expected posts

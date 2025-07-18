@@ -134,7 +134,7 @@ var _ = Describe("Scorer", func() {
 
 			_, err := s.ScorePosts(ctx, posts)
 			Expect(err).To(HaveOccurred())
-			Expect(err.Error()).To(ContainSubstring("no response from OpenAI"))
+			Expect(err.Error()).To(ContainSubstring("empty response with no choices"))
 		})
 
 		It("should handle out of range scores", func() {

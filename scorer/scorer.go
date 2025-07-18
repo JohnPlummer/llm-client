@@ -75,6 +75,13 @@ func WithPrompt(prompt string) func(*scorer) {
 	}
 }
 
+// WithMaxConcurrent returns a function that sets MaxConcurrent for the scorer
+func WithMaxConcurrent(maxConcurrent int) func(*scorer) {
+	return func(s *scorer) {
+		s.config.MaxConcurrent = maxConcurrent
+	}
+}
+
 // NewWithClient creates a new scorer with a custom OpenAI client and options
 func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
 	s := &scorer{

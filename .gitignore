@@ -11,6 +11,7 @@
 # Output of the go coverage tool
 *.out
 coverage.md
+coverage.html
 
 # Dependency directories
 vendor/
@@ -27,4 +28,6 @@ go.work
 .vscode/
 *.swp
 *.swo 
+
+# Local settings
 .claude/settings.local.json

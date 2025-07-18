@@ -190,6 +190,92 @@ var _ = Describe("Scorer", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(scored)).To(Equal(25))
 		})
+		
+		It("should actually use concurrent processing with MaxConcurrent > 1", func() {
+			// Create enough posts to trigger multiple batches (15 posts = 2 batches)
+			manyPosts := make([]*reddit.Post, 15)
+			for i := 0; i < 15; i++ {
+				manyPosts[i] = &reddit.Post{
+					ID:    fmt.Sprintf("post%d", i+1),
+					Title: fmt.Sprintf("Test Post %d", i+1),
+				}
+			}
+
+			callCount := 0
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					callCount++
+					// Generate responses for all posts in the batch
+					var scores []string
+					for i := 1; i <= 10; i++ { // Each batch has up to 10 posts
+						if callCount == 1 && i <= 10 {
+							scores = append(scores, fmt.Sprintf(`{"post_id": "post%d", "title": "Test Post %d", "score": 50, "reason": "Test reason"}`, i, i))
+						} else if callCount == 2 && i <= 5 {
+							scores = append(scores, fmt.Sprintf(`{"post_id": "post%d", "title": "Test Post %d", "score": 60, "reason": "Test reason"}`, i+10, i+10))
+						}
+					}
+					
+					content := fmt.Sprintf(`{"version": "1.0", "scores": [%s]}`, strings.Join(scores, ","))
+					
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{
+							{
+								Message: openai.ChatCompletionMessage{
+									Content: content,
+								},
+							},
+						},
+					}, nil
+				},
+			}
+			
+			// Create scorer with concurrent processing enabled
+			s := scorer.NewWithClient(mockClient, 
+				scorer.WithPrompt("Test prompt with %s"),
+				scorer.WithMaxConcurrent(3))
+			
+			scored, err := s.ScorePosts(ctx, manyPosts)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(scored)).To(Equal(15))
+			Expect(callCount).To(Equal(2)) // Should make 2 batch calls
+		})
+		
+		It("should respect context cancellation", func() {
+			ctx, cancel := context.WithCancel(context.Background())
+			
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					// Check if context is cancelled
+					select {
+					case <-ctx.Done():
+						return openai.ChatCompletionResponse{}, ctx.Err()
+					default:
+						return openai.ChatCompletionResponse{
+							Choices: []openai.ChatCompletionChoice{
+								{
+									Message: openai.ChatCompletionMessage{
+										Content: `{"version": "1.0", "scores": [{"post_id": "post1", "title": "Test Post 1", "score": 50, "reason": "Test reason"}]}`,
+									},
+								},
+							},
+						}, nil
+					}
+				},
+			}
+			
+			s := scorer.NewWithClient(mockClient)
+			
+			// Cancel the context before making the call
+			cancel()
+			
+			posts := []*reddit.Post{
+				{ID: "post1", Title: "Test Post 1"},
+			}
+			
+			_, err := s.ScorePosts(ctx, posts)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("context canceled"))
+		})
 
 		It("should handle API errors", func() {
 			mockClient := &mockOpenAIClient{

@@ -3,8 +3,10 @@ package scorer
 import (
 	"context"
 	"embed"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/JohnPlummer/reddit-client/reddit"
 	"github.com/sashabaranov/go-openai"
@@ -34,6 +36,14 @@ func New(cfg Config) (Scorer, error) {
 	
 	if cfg.OpenAIKey == "" {
 		return nil, ErrMissingAPIKey
+	}
+	
+	if cfg.PromptText != "" && !strings.Contains(cfg.PromptText, "%s") {
+		return nil, errors.New("custom prompt must contain %s placeholder for posts")
+	}
+	
+	if cfg.MaxConcurrent < 0 {
+		return nil, errors.New("MaxConcurrent must be non-negative")
 	}
 
 	prompt := batchScorePrompt

@@ -150,6 +150,46 @@ var _ = Describe("Scorer", func() {
 			Expect(err).To(HaveOccurred())
 			Expect(err.Error()).To(ContainSubstring("is nil"))
 		})
+		
+		It("should work with MaxConcurrent set", func() {
+			cfg := scorer.Config{
+				OpenAIKey:     "test-key",
+				MaxConcurrent: 2,
+			}
+			s, err := scorer.New(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(s).NotTo(BeNil())
+		})
+		
+		It("should handle concurrent processing", func() {
+			// Create more posts to trigger multiple batches
+			manyPosts := make([]*reddit.Post, 25)
+			for i := 0; i < 25; i++ {
+				manyPosts[i] = &reddit.Post{
+					ID:    fmt.Sprintf("post%d", i+1),
+					Title: fmt.Sprintf("Test Post %d", i+1),
+				}
+			}
+
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{
+							{
+								Message: openai.ChatCompletionMessage{
+									Content: `{"version": "1.0", "scores": [{"post_id": "post1", "title": "Test Post 1", "score": 50, "reason": "Test reason"}]}`,
+								},
+							},
+						},
+					}, nil
+				},
+			}
+			s := scorer.NewWithClient(mockClient)
+
+			scored, err := s.ScorePosts(ctx, manyPosts)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(scored)).To(Equal(25))
+		})
 
 		It("should handle API errors", func() {
 			mockClient := &mockOpenAIClient{

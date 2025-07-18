@@ -45,6 +45,11 @@ func New(cfg Config) (Scorer, error) {
 	if cfg.MaxConcurrent < 0 {
 		return nil, errors.New("MaxConcurrent must be non-negative")
 	}
+	
+	// Set default MaxConcurrent if not specified
+	if cfg.MaxConcurrent == 0 {
+		cfg.MaxConcurrent = 1
+	}
 
 	prompt := batchScorePrompt
 	if cfg.PromptText != "" {
@@ -97,18 +102,85 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*Score
 		}
 	}
 
-	var allResults []*ScoredPost
+	// Create batches
+	var batches [][]*reddit.Post
 	for i := 0; i < len(posts); i += maxBatchSize {
-		results, err := s.processBatch(ctx, posts[i:min(i+maxBatchSize, len(posts))])
+		batch := posts[i:min(i+maxBatchSize, len(posts))]
+		batches = append(batches, batch)
+	}
+
+	// Process batches based on MaxConcurrent setting
+	if s.config.MaxConcurrent <= 1 {
+		return s.processSequentially(ctx, batches)
+	}
+	return s.processConcurrently(ctx, batches)
+}
+
+func (s *scorer) processSequentially(ctx context.Context, batches [][]*reddit.Post) ([]*ScoredPost, error) {
+	var allResults []*ScoredPost
+	for i, batch := range batches {
+		results, err := s.processBatch(ctx, batch)
 		if err != nil {
-			return nil, fmt.Errorf("processing batch %d: %w", i/maxBatchSize, err)
+			return nil, fmt.Errorf("processing batch %d: %w", i, err)
 		}
 		allResults = append(allResults, results...)
 	}
 
 	slog.Info("All posts scored successfully",
-		"total_posts", len(posts),
-		"total_batches", (len(posts)+maxBatchSize-1)/maxBatchSize)
+		"total_posts", len(allResults),
+		"total_batches", len(batches),
+		"mode", "sequential")
 
 	return allResults, nil
+}
+
+func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Post) ([]*ScoredPost, error) {
+	type batchResult struct {
+		index   int
+		results []*ScoredPost
+		err     error
+	}
+
+	// Semaphore to limit concurrent processing
+	sem := make(chan struct{}, s.config.MaxConcurrent)
+	results := make(chan batchResult, len(batches))
+
+	// Process batches concurrently
+	for i, batch := range batches {
+		go func(index int, batch []*reddit.Post) {
+			sem <- struct{}{} // Acquire semaphore
+			defer func() { <-sem }() // Release semaphore
+
+			batchResults, err := s.processBatch(ctx, batch)
+			results <- batchResult{
+				index:   index,
+				results: batchResults,
+				err:     err,
+			}
+		}(i, batch)
+	}
+
+	// Collect results in order
+	allResults := make([][]*ScoredPost, len(batches))
+	for i := 0; i < len(batches); i++ {
+		result := <-results
+		if result.err != nil {
+			return nil, fmt.Errorf("processing batch %d: %w", result.index, result.err)
+		}
+		allResults[result.index] = result.results
+	}
+
+	// Flatten results
+	var flatResults []*ScoredPost
+	for _, batchResults := range allResults {
+		flatResults = append(flatResults, batchResults...)
+	}
+
+	slog.Info("All posts scored successfully",
+		"total_posts", len(flatResults),
+		"total_batches", len(batches),
+		"mode", "concurrent",
+		"max_concurrent", s.config.MaxConcurrent)
+
+	return flatResults, nil
 }

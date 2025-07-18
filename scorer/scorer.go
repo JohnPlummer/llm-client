@@ -34,6 +34,10 @@ func New(cfg Config) (Scorer, error) {
 		return nil, initError
 	}
 	
+	if batchPromptError != nil {
+		return nil, batchPromptError
+	}
+	
 	if cfg.OpenAIKey == "" {
 		return nil, ErrMissingAPIKey
 	}

@@ -13,7 +13,7 @@ The scorer evaluates Reddit posts and returns a slice of `ScoredPost` structs co
 ## Installation
 
 ```bash
-go get github.com/JohnPlummer/post-scorer
+go get github.com/JohnPlummer/post-scorer@v0.9.0
 ```
 
 ## Usage

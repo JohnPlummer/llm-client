@@ -9,6 +9,7 @@ require (
 	github.com/sashabaranov/go-openai v1.37.0
 )
 
+// Local development dependency - replace with published version for external use
 replace github.com/JohnPlummer/reddit-client => ../reddit-client
 
 require (

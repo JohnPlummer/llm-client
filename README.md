@@ -12,13 +12,6 @@ The scorer evaluates Reddit posts and returns a slice of `ScoredPost` structs co
 
 ## Installation
 
-**Note**: This library currently depends on `github.com/JohnPlummer/reddit-client` which must be available as a published module. Currently, this dependency uses a local replace directive in `go.mod`.
-
-To use this library externally, you will need to either:
-1. Publish the `reddit-client` module to a public repository
-2. Use a local clone of both repositories
-3. Replace the dependency with an alternative Reddit client
-
 ```bash
 go get github.com/JohnPlummer/post-scorer
 ```

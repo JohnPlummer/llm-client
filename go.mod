@@ -3,14 +3,11 @@ module github.com/JohnPlummer/post-scorer
 go 1.23.1
 
 require (
-	github.com/JohnPlummer/reddit-client v0.0.0
+	github.com/JohnPlummer/reddit-client v0.9.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
 	github.com/sashabaranov/go-openai v1.37.0
 )
-
-// Local development dependency - replace with published version for external use
-replace github.com/JohnPlummer/reddit-client => ../reddit-client
 
 require (
 	github.com/go-logr/logr v1.4.2 // indirect

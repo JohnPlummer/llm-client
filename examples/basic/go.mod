@@ -4,7 +4,7 @@ go 1.23.1
 
 require (
 	github.com/JohnPlummer/post-scorer v0.0.0
-	github.com/JohnPlummer/reddit-client v0.0.0
+	github.com/JohnPlummer/reddit-client v0.9.0
 	github.com/joho/godotenv v1.5.1
 )
 

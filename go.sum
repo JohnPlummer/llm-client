@@ -1,3 +1,5 @@
+github.com/JohnPlummer/reddit-client v0.9.0 h1:PeP7DgzZsTNgA6kW9n2sSvz12/Kl4X+zJaJO+ZPK9/c=
+github.com/JohnPlummer/reddit-client v0.9.0/go.mod h1:LR1y6rKg8M3oNT9LLHirqSm8eMly+bF+5WY3/EZar2w=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/go-logr/logr v1.4.2 h1:6pFjapn8bFcIbiKo3XT4j/BhANplGihG6tvd+8rYgrY=

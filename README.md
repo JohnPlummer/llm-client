@@ -37,7 +37,7 @@ func main() {
     }
 
     // Score some posts
-    posts := []reddit.Post{
+    posts := []*reddit.Post{
         {
             ID:    "post1",
             Title: "Best restaurants in town?",
@@ -51,7 +51,7 @@ func main() {
 
     // Use the scored posts
     for _, post := range scored {
-        fmt.Printf("Post: %s\nScore: %.2f\nReason: %s\n\n", 
+        fmt.Printf("Post: %s\nScore: %d\nReason: %s\n\n", 
             post.Post.Title, 
             post.Score, 
             post.Reason)

@@ -110,3 +110,7 @@ For comprehensive documentation, see the `docs/` directory:
 ## Examples
 
 Check the `examples` directory for complete usage examples, including CSV data loading and custom prompt configuration.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

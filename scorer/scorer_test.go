@@ -446,4 +446,261 @@ var _ = Describe("Scorer", func() {
 			}
 		})
 	})
+
+	Describe("ScorePostsWithOptions", func() {
+		It("should use custom model when WithModel option is provided", func() {
+			var capturedModel string
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					capturedModel = req.Model
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version":"1.0","scores":[{"post_id":"post1","title":"Test Post 1","score":75,"reason":"Test"}]}`,
+							},
+						}},
+					}, nil
+				},
+			}
+			
+			cfg := scorer.Config{
+				OpenAIKey: "test-key",
+				Model: "gpt-4", // Default model
+			}
+			s, err := scorer.New(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			
+			// Use internal test method to inject mock client
+			type scorerWithClient interface {
+				scorer.Scorer
+				SetClient(client interface{})
+			}
+			if sc, ok := s.(scorerWithClient); ok {
+				sc.SetClient(mockClient)
+			} else {
+				// If we can't inject, create with NewWithClient
+				s = scorer.NewWithClient(mockClient)
+			}
+			
+			// Test with custom model
+			_, err = s.ScorePostsWithOptions(ctx, posts, scorer.WithModel("gpt-3.5-turbo"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(capturedModel).To(Equal("gpt-3.5-turbo"))
+		})
+
+		It("should use custom prompt template with WithPromptTemplate option", func() {
+			var capturedPrompt string
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					// Capture the user message content
+					for _, msg := range req.Messages {
+						if msg.Role == openai.ChatMessageRoleUser {
+							capturedPrompt = msg.Content
+						}
+					}
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version":"1.0","scores":[{"post_id":"post1","title":"Test Post 1","score":75,"reason":"Test"}]}`,
+							},
+						}},
+					}, nil
+				},
+			}
+			
+			cfg := scorer.Config{
+				OpenAIKey: "test-key",
+			}
+			s, err := scorer.New(cfg)
+			Expect(err).NotTo(HaveOccurred())
+			
+			// Use NewWithClient for testing
+			s = scorer.NewWithClient(mockClient)
+			
+			// Test with custom template
+			customTemplate := "Custom prompt: {{.Posts}}"
+			_, err = s.ScorePostsWithOptions(ctx, posts, scorer.WithPromptTemplate(customTemplate))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(capturedPrompt).To(ContainSubstring("Custom prompt:"))
+		})
+
+		It("should pass extra context with WithExtraContext option", func() {
+			var capturedPrompt string
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					for _, msg := range req.Messages {
+						if msg.Role == openai.ChatMessageRoleUser {
+							capturedPrompt = msg.Content
+						}
+					}
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version":"1.0","scores":[{"post_id":"post1","title":"Test Post 1","score":75,"reason":"Test"}]}`,
+							},
+						}},
+					}, nil
+				},
+			}
+			
+			s := scorer.NewWithClient(mockClient)
+			
+			// Test with extra context
+			extraContext := map[string]string{
+				"City": "Brighton",
+				"Type": "Gatekeeper",
+			}
+			customTemplate := "Scoring for {{.City}} - Type: {{.Type}}\nPosts: {{.Posts}}"
+			
+			_, err := s.ScorePostsWithOptions(ctx, posts, 
+				scorer.WithPromptTemplate(customTemplate),
+				scorer.WithExtraContext(extraContext))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(capturedPrompt).To(ContainSubstring("Scoring for Brighton"))
+			Expect(capturedPrompt).To(ContainSubstring("Type: Gatekeeper"))
+		})
+	})
+
+	Describe("ScorePostsWithContext", func() {
+		It("should score posts with additional context data", func() {
+			mockClient := &mockOpenAIClient{
+				response: openai.ChatCompletionResponse{
+					Choices: []openai.ChatCompletionChoice{{
+						Message: openai.ChatCompletionMessage{
+							Content: `{"version":"1.0","scores":[{"post_id":"post1","title":"Test Post 1","score":85,"reason":"Has relevant comments"}]}`,
+						},
+					}},
+				},
+			}
+			
+			s := scorer.NewWithClient(mockClient)
+			
+			contexts := []scorer.ScoringContext{
+				{
+					Post: posts[0],
+					ExtraData: map[string]string{
+						"Comments": "Great place for coffee!",
+					},
+				},
+			}
+			
+			scored, err := s.ScorePostsWithContext(ctx, contexts)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(scored)).To(Equal(1))
+			Expect(scored[0].Score).To(Equal(85))
+			Expect(scored[0].Reason).To(Equal("Has relevant comments"))
+		})
+
+		It("should use template variables from context", func() {
+			var capturedPrompt string
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					for _, msg := range req.Messages {
+						if msg.Role == openai.ChatMessageRoleUser {
+							capturedPrompt = msg.Content
+						}
+					}
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: `{"version":"1.0","scores":[{"post_id":"post1","title":"Test Post 1","score":85,"reason":"Test"}]}`,
+							},
+						}},
+					}, nil
+				},
+			}
+			
+			s := scorer.NewWithClient(mockClient)
+			
+			contexts := []scorer.ScoringContext{
+				{
+					Post: posts[0],
+					ExtraData: map[string]string{
+						"Comments": "Great coffee shop recommendation",
+					},
+				},
+			}
+			
+			// Template that uses context data
+			template := "Post: {{range .Contexts}}{{.PostTitle}} - Comments: {{.Comments}}{{end}}"
+			
+			_, err := s.ScorePostsWithContext(ctx, contexts, scorer.WithPromptTemplate(template))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(capturedPrompt).To(ContainSubstring("Test Post 1 - Comments: Great coffee shop recommendation"))
+		})
+
+		It("should handle empty contexts", func() {
+			s := scorer.NewWithClient(mockClient)
+			
+			scored, err := s.ScorePostsWithContext(ctx, []scorer.ScoringContext{})
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(scored)).To(Equal(0))
+		})
+
+		It("should return error for nil contexts", func() {
+			s := scorer.NewWithClient(mockClient)
+			
+			_, err := s.ScorePostsWithContext(ctx, nil)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("contexts cannot be nil"))
+		})
+
+		It("should return error for context with nil post", func() {
+			s := scorer.NewWithClient(mockClient)
+			
+			contexts := []scorer.ScoringContext{
+				{
+					Post:      nil,
+					ExtraData: map[string]string{},
+				},
+			}
+			
+			_, err := s.ScorePostsWithContext(ctx, contexts)
+			Expect(err).To(HaveOccurred())
+			Expect(err.Error()).To(ContainSubstring("context at index 0 has nil post"))
+		})
+
+		It("should work with concurrent processing", func() {
+			var callCount int
+			mockClient := &mockOpenAIClient{
+				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
+					callCount++
+					// Return appropriate number of scores based on request
+					scores := `[{"post_id":"post1","title":"Test","score":70,"reason":"Test"}]`
+					if callCount == 1 {
+						scores = `[{"post_id":"post1","title":"Test","score":70,"reason":"Test"},{"post_id":"post2","title":"Test","score":70,"reason":"Test"},{"post_id":"post3","title":"Test","score":70,"reason":"Test"},{"post_id":"post4","title":"Test","score":70,"reason":"Test"},{"post_id":"post5","title":"Test","score":70,"reason":"Test"},{"post_id":"post6","title":"Test","score":70,"reason":"Test"},{"post_id":"post7","title":"Test","score":70,"reason":"Test"},{"post_id":"post8","title":"Test","score":70,"reason":"Test"},{"post_id":"post9","title":"Test","score":70,"reason":"Test"},{"post_id":"post10","title":"Test","score":70,"reason":"Test"}]`
+					}
+					return openai.ChatCompletionResponse{
+						Choices: []openai.ChatCompletionChoice{{
+							Message: openai.ChatCompletionMessage{
+								Content: fmt.Sprintf(`{"version":"1.0","scores":%s}`, scores),
+							},
+						}},
+					}, nil
+				},
+			}
+			
+			// Create scorer with concurrent processing
+			s := scorer.NewWithClient(mockClient, scorer.WithMaxConcurrent(2))
+			
+			// Create many contexts
+			var contexts []scorer.ScoringContext
+			for i := 1; i <= 15; i++ {
+				contexts = append(contexts, scorer.ScoringContext{
+					Post: &reddit.Post{
+						ID:    fmt.Sprintf("post%d", i),
+						Title: fmt.Sprintf("Test Post %d", i),
+					},
+					ExtraData: map[string]string{
+						"Comments": fmt.Sprintf("Comments for post %d", i),
+					},
+				})
+			}
+			
+			scored, err := s.ScorePostsWithContext(ctx, contexts)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(scored)).To(Equal(15))
+			Expect(callCount).To(Equal(2)) // Should make 2 batch calls
+		})
+	})
 })

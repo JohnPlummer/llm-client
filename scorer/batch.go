@@ -1,10 +1,13 @@
 package scorer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"strings"
+	"text/template"
 
 	"github.com/JohnPlummer/reddit-client/reddit"
 	"github.com/sashabaranov/go-openai"
@@ -12,7 +15,27 @@ import (
 )
 
 func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post, options *scoringOptions) ([]*ScoredPost, error) {
-	prompt := fmt.Sprintf(s.prompt, formatPostsForBatch(batch))
+	return s.processBatchWithContext(ctx, batch, nil, options)
+}
+
+func (s *scorer) processBatchWithContext(ctx context.Context, batch []*reddit.Post, contexts []ScoringContext, options *scoringOptions) ([]*ScoredPost, error) {
+	// Determine which prompt to use
+	promptText := s.prompt
+	if options != nil && options.promptText != "" {
+		promptText = options.promptText
+	}
+	
+	// Format the prompt with appropriate data
+	var prompt string
+	var err error
+	if contexts != nil {
+		prompt, err = s.formatPromptWithContext(promptText, contexts, options)
+	} else {
+		prompt, err = s.formatPrompt(promptText, batch, options)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to format prompt: %w", err)
+	}
 
 	slog.Info("Processing batch of posts", "batch_size", len(batch))
 
@@ -163,5 +186,103 @@ func formatPostsForBatch(posts []*reddit.Post) string {
 	}
 
 	return string(jsonData)
+}
+
+// formatPrompt formats a prompt with template support
+func (s *scorer) formatPrompt(promptText string, posts []*reddit.Post, options *scoringOptions) (string, error) {
+	// Check if prompt contains template syntax
+	if strings.Contains(promptText, "{{") && strings.Contains(promptText, "}}") {
+		// Use template processing
+		tmpl, err := template.New("prompt").Parse(promptText)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse prompt template: %w", err)
+		}
+		
+		// Create template data
+		data := map[string]interface{}{
+			"Posts": formatPostsForBatch(posts),
+		}
+		
+		// Add extra context from options if available
+		if options != nil && options.extraContext != nil {
+			for k, v := range options.extraContext {
+				data[k] = v
+			}
+		}
+		
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, data); err != nil {
+			return "", fmt.Errorf("failed to execute prompt template: %w", err)
+		}
+		
+		return buf.String(), nil
+	}
+	
+	// Fall back to simple sprintf for backward compatibility
+	if strings.Contains(promptText, "%s") {
+		return fmt.Sprintf(promptText, formatPostsForBatch(posts)), nil
+	}
+	
+	// No placeholders, return as-is
+	return promptText, nil
+}
+
+// formatPromptWithContext formats a prompt with scoring contexts
+func (s *scorer) formatPromptWithContext(promptText string, contexts []ScoringContext, options *scoringOptions) (string, error) {
+	// Convert contexts to posts for JSON formatting
+	posts := make([]*reddit.Post, len(contexts))
+	for i, ctx := range contexts {
+		posts[i] = ctx.Post
+	}
+	
+	// Check if prompt contains template syntax
+	if strings.Contains(promptText, "{{") && strings.Contains(promptText, "}}") {
+		// Use template processing
+		tmpl, err := template.New("prompt").Parse(promptText)
+		if err != nil {
+			return "", fmt.Errorf("failed to parse prompt template: %w", err)
+		}
+		
+		// Create template data with contexts
+		contextData := make([]map[string]interface{}, len(contexts))
+		for i, ctx := range contexts {
+			postData := map[string]interface{}{
+				"ID":       ctx.Post.ID,
+				"Title":    ctx.Post.Title,
+				"Body":     ctx.Post.SelfText,
+				"PostTitle": ctx.Post.Title,
+				"PostBody":  ctx.Post.SelfText,
+			}
+			
+			// Add extra data from context
+			for k, v := range ctx.ExtraData {
+				postData[k] = v
+			}
+			
+			contextData[i] = postData
+		}
+		
+		data := map[string]interface{}{
+			"Posts":    formatPostsForBatch(posts),
+			"Contexts": contextData,
+		}
+		
+		// Add extra context from options if available
+		if options != nil && options.extraContext != nil {
+			for k, v := range options.extraContext {
+				data[k] = v
+			}
+		}
+		
+		var buf bytes.Buffer
+		if err := tmpl.Execute(&buf, data); err != nil {
+			return "", fmt.Errorf("failed to execute prompt template: %w", err)
+		}
+		
+		return buf.String(), nil
+	}
+	
+	// Fall back to simple formatting
+	return s.formatPrompt(promptText, posts, options)
 }
 

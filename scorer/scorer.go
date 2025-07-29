@@ -96,6 +96,11 @@ func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
 
 // ScorePosts evaluates and scores a slice of Reddit posts
 func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error) {
+	return s.ScorePostsWithOptions(ctx, posts)
+}
+
+// ScorePostsWithOptions evaluates and scores a slice of Reddit posts with options
+func (s *scorer) ScorePostsWithOptions(ctx context.Context, posts []*reddit.Post, opts ...ScoringOption) ([]*ScoredPost, error) {
 	if posts == nil {
 		return nil, errors.New("posts cannot be nil")
 	}
@@ -113,6 +118,16 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*Score
 		}
 	}
 
+	// Apply default options
+	options := &scoringOptions{
+		model: s.config.Model, // Default from config
+	}
+	
+	// Apply provided options
+	for _, opt := range opts {
+		opt(options)
+	}
+
 	// Create batches
 	var batches [][]*reddit.Post
 	for i := 0; i < len(posts); i += maxBatchSize {
@@ -122,15 +137,15 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*Score
 
 	// Process batches based on MaxConcurrent setting
 	if s.config.MaxConcurrent <= 1 {
-		return s.processSequentially(ctx, batches)
+		return s.processSequentially(ctx, batches, options)
 	}
-	return s.processConcurrently(ctx, batches)
+	return s.processConcurrently(ctx, batches, options)
 }
 
-func (s *scorer) processSequentially(ctx context.Context, batches [][]*reddit.Post) ([]*ScoredPost, error) {
+func (s *scorer) processSequentially(ctx context.Context, batches [][]*reddit.Post, options *scoringOptions) ([]*ScoredPost, error) {
 	var allResults []*ScoredPost
 	for i, batch := range batches {
-		results, err := s.processBatch(ctx, batch)
+		results, err := s.processBatch(ctx, batch, options)
 		if err != nil {
 			return nil, fmt.Errorf("processing batch %d: %w", i, err)
 		}
@@ -145,7 +160,7 @@ func (s *scorer) processSequentially(ctx context.Context, batches [][]*reddit.Po
 	return allResults, nil
 }
 
-func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Post) ([]*ScoredPost, error) {
+func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Post, options *scoringOptions) ([]*ScoredPost, error) {
 	type batchResult struct {
 		index   int
 		results []*ScoredPost
@@ -162,7 +177,7 @@ func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Po
 			sem <- struct{}{} // Acquire semaphore
 			defer func() { <-sem }() // Release semaphore
 
-			batchResults, err := s.processBatch(ctx, batch)
+			batchResults, err := s.processBatch(ctx, batch, options)
 			results <- batchResult{
 				index:   index,
 				results: batchResults,

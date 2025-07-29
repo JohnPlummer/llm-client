@@ -11,6 +11,7 @@ import (
 // Scorer provides methods to score Reddit posts using ChatGPT
 type Scorer interface {
 	ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error)
+	ScorePostsWithOptions(ctx context.Context, posts []*reddit.Post, opts ...ScoringOption) ([]*ScoredPost, error)
 }
 
 // ScoredPost represents a Reddit post with its AI-generated score
@@ -23,6 +24,7 @@ type ScoredPost struct {
 // Config holds the configuration for the scorer
 type Config struct {
 	OpenAIKey     string
+	Model         string
 	PromptText    string
 	MaxConcurrent int
 }
@@ -51,4 +53,19 @@ type scoreItem struct {
 	Title  string `json:"title"`
 	Score  int    `json:"score"`
 	Reason string `json:"reason"`
+}
+
+// ScoringOption is a functional option for configuring scoring behavior
+type ScoringOption func(*scoringOptions)
+
+// scoringOptions holds the options for a scoring request
+type scoringOptions struct {
+	model string
+}
+
+// WithModel sets the model for this scoring request
+func WithModel(model string) ScoringOption {
+	return func(opts *scoringOptions) {
+		opts.model = model
+	}
 }

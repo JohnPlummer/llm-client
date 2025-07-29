@@ -11,7 +11,7 @@ import (
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
-func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post) ([]*ScoredPost, error) {
+func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post, options *scoringOptions) ([]*ScoredPost, error) {
 	prompt := fmt.Sprintf(s.prompt, formatPostsForBatch(batch))
 
 	slog.Info("Processing batch of posts", "batch_size", len(batch))
@@ -21,7 +21,7 @@ func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post) ([]*Sco
 		return nil, fmt.Errorf("failed to generate JSON schema for batch of %d posts: %w", len(batch), err)
 	}
 
-	resp, err := s.createChatCompletion(ctx, prompt, schema)
+	resp, err := s.createChatCompletion(ctx, prompt, schema, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chat completion for batch of %d posts: %w", len(batch), err)
 	}
@@ -34,9 +34,18 @@ func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post) ([]*Sco
 	return s.createScoredPosts(batch, scores)
 }
 
-func (s *scorer) buildChatRequest(prompt string, schema *jsonschema.Definition) openai.ChatCompletionRequest {
+func (s *scorer) buildChatRequest(prompt string, schema *jsonschema.Definition, options *scoringOptions) openai.ChatCompletionRequest {
+	// Determine which model to use
+	model := s.config.Model
+	if model == "" {
+		model = openai.GPT4oMini // Default model
+	}
+	if options != nil && options.model != "" {
+		model = options.model // Override with options
+	}
+	
 	return openai.ChatCompletionRequest{
-		Model: openai.GPT4oMini,
+		Model: model,
 		Messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
@@ -57,8 +66,8 @@ func (s *scorer) buildChatRequest(prompt string, schema *jsonschema.Definition) 
 	}
 }
 
-func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema *jsonschema.Definition) (*openai.ChatCompletionResponse, error) {
-	req := s.buildChatRequest(prompt, schema)
+func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema *jsonschema.Definition, options *scoringOptions) (*openai.ChatCompletionResponse, error) {
+	req := s.buildChatRequest(prompt, schema, options)
 	
 	resp, err := s.client.CreateChatCompletion(ctx, req)
 	if err != nil {

@@ -1,7 +1,7 @@
 package scorer
 
 // Version represents the current version of the post-scorer library
-const Version = "0.9.0"
+const Version = "0.9.1"
 
 // VersionInfo provides version information for the library
 type VersionInfo struct {

@@ -64,8 +64,63 @@ func main() {
 The `Config` struct accepts:
 
 - `OpenAIKey` (required): Your OpenAI API key
+- `Model` (optional): OpenAI model to use (defaults to GPT-4o-mini)
 - `PromptText` (optional): Custom prompt template
 - `MaxConcurrent` (optional): For rate limiting
+
+## Advanced Usage
+
+### Per-Request Model Selection
+
+Override the model for specific scoring requests:
+
+```go
+// Use GPT-4 for more accurate scoring
+scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
+    scorer.WithModel("gpt-4"))
+
+// Use GPT-3.5-turbo for faster, cheaper scoring
+scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
+    scorer.WithModel("gpt-3.5-turbo"))
+```
+
+### Custom Prompt Templates
+
+Use Go template syntax for dynamic prompts:
+
+```go
+// Template with extra context
+template := "Score posts for {{.City}}: {{.Posts}}"
+scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
+    scorer.WithPromptTemplate(template),
+    scorer.WithExtraContext(map[string]string{"City": "Brighton"}))
+```
+
+### Scoring with Context
+
+Score posts with additional context data like comments:
+
+```go
+contexts := []scorer.ScoringContext{
+    {
+        Post: post,
+        ExtraData: map[string]string{
+            "Comments": "Great coffee! Been there many times.",
+            "Metadata": "Posted in r/Brighton",
+        },
+    },
+}
+
+// Use a template that includes the extra context
+template := `Score this post:
+Title: {{range .Contexts}}{{.PostTitle}}{{end}}
+Body: {{range .Contexts}}{{.PostBody}}{{end}}
+Comments: {{range .Contexts}}{{.Comments}}{{end}}`
+
+scoredPosts, err := scorer.ScorePostsWithContext(ctx, contexts,
+    scorer.WithPromptTemplate(template),
+    scorer.WithModel("gpt-4o"))
+```
 
 ## Custom Prompts
 
@@ -91,7 +146,7 @@ Critical requirements:
 2. All fields are required
 3. Score must be between 0-100
 4. Every post must receive a score and reason
-5. Include `%s` as placeholder where posts will be injected
+5. Include `%s` as placeholder for simple prompts, or use Go template syntax for advanced prompts
 
 See `examples/basic/custom_prompt.txt` for a complete example prompt.
 

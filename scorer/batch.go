@@ -195,7 +195,7 @@ func (s *scorer) formatPrompt(promptText string, posts []*reddit.Post, options *
 		// Use template processing
 		tmpl, err := template.New("prompt").Parse(promptText)
 		if err != nil {
-			return "", fmt.Errorf("failed to parse prompt template: %w", err)
+			return "", fmt.Errorf("failed to parse prompt template: %w (template: %.100s...)", err, promptText)
 		}
 		
 		// Create template data
@@ -212,7 +212,7 @@ func (s *scorer) formatPrompt(promptText string, posts []*reddit.Post, options *
 		
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
-			return "", fmt.Errorf("failed to execute prompt template: %w", err)
+			return "", fmt.Errorf("failed to execute prompt template: %w (available fields: %v)", err, getMapKeys(data))
 		}
 		
 		return buf.String(), nil
@@ -240,7 +240,7 @@ func (s *scorer) formatPromptWithContext(promptText string, contexts []ScoringCo
 		// Use template processing
 		tmpl, err := template.New("prompt").Parse(promptText)
 		if err != nil {
-			return "", fmt.Errorf("failed to parse prompt template: %w", err)
+			return "", fmt.Errorf("failed to parse prompt template: %w (template: %.100s...)", err, promptText)
 		}
 		
 		// Create template data with contexts
@@ -276,7 +276,7 @@ func (s *scorer) formatPromptWithContext(promptText string, contexts []ScoringCo
 		
 		var buf bytes.Buffer
 		if err := tmpl.Execute(&buf, data); err != nil {
-			return "", fmt.Errorf("failed to execute prompt template: %w", err)
+			return "", fmt.Errorf("failed to execute prompt template: %w (available fields: %v)", err, getMapKeys(data))
 		}
 		
 		return buf.String(), nil
@@ -284,5 +284,14 @@ func (s *scorer) formatPromptWithContext(promptText string, contexts []ScoringCo
 	
 	// Fall back to simple formatting
 	return s.formatPrompt(promptText, posts, options)
+}
+
+// getMapKeys returns the keys of a map for debugging purposes
+func getMapKeys(m map[string]interface{}) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 

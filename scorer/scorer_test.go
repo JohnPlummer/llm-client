@@ -463,27 +463,11 @@ var _ = Describe("Scorer", func() {
 				},
 			}
 			
-			cfg := scorer.Config{
-				OpenAIKey: "test-key",
-				Model: "gpt-4", // Default model
-			}
-			s, err := scorer.New(cfg)
-			Expect(err).NotTo(HaveOccurred())
-			
-			// Use internal test method to inject mock client
-			type scorerWithClient interface {
-				scorer.Scorer
-				SetClient(client interface{})
-			}
-			if sc, ok := s.(scorerWithClient); ok {
-				sc.SetClient(mockClient)
-			} else {
-				// If we can't inject, create with NewWithClient
-				s = scorer.NewWithClient(mockClient)
-			}
+			// Create scorer with mock client directly
+			s := scorer.NewWithClient(mockClient)
 			
 			// Test with custom model
-			_, err = s.ScorePostsWithOptions(ctx, posts, scorer.WithModel("gpt-3.5-turbo"))
+			_, err := s.ScorePostsWithOptions(ctx, posts, scorer.WithModel("gpt-3.5-turbo"))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(capturedModel).To(Equal("gpt-3.5-turbo"))
 		})
@@ -508,18 +492,12 @@ var _ = Describe("Scorer", func() {
 				},
 			}
 			
-			cfg := scorer.Config{
-				OpenAIKey: "test-key",
-			}
-			s, err := scorer.New(cfg)
-			Expect(err).NotTo(HaveOccurred())
-			
 			// Use NewWithClient for testing
-			s = scorer.NewWithClient(mockClient)
+			s := scorer.NewWithClient(mockClient)
 			
 			// Test with custom template
 			customTemplate := "Custom prompt: {{.Posts}}"
-			_, err = s.ScorePostsWithOptions(ctx, posts, scorer.WithPromptTemplate(customTemplate))
+			_, err := s.ScorePostsWithOptions(ctx, posts, scorer.WithPromptTemplate(customTemplate))
 			Expect(err).NotTo(HaveOccurred())
 			Expect(capturedPrompt).To(ContainSubstring("Custom prompt:"))
 		})
@@ -666,10 +644,22 @@ var _ = Describe("Scorer", func() {
 				createChatCompletionFunc: func(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
 					callCount++
 					// Return appropriate number of scores based on request
-					scores := `[{"post_id":"post1","title":"Test","score":70,"reason":"Test"}]`
+					var scoreItems []string
 					if callCount == 1 {
-						scores = `[{"post_id":"post1","title":"Test","score":70,"reason":"Test"},{"post_id":"post2","title":"Test","score":70,"reason":"Test"},{"post_id":"post3","title":"Test","score":70,"reason":"Test"},{"post_id":"post4","title":"Test","score":70,"reason":"Test"},{"post_id":"post5","title":"Test","score":70,"reason":"Test"},{"post_id":"post6","title":"Test","score":70,"reason":"Test"},{"post_id":"post7","title":"Test","score":70,"reason":"Test"},{"post_id":"post8","title":"Test","score":70,"reason":"Test"},{"post_id":"post9","title":"Test","score":70,"reason":"Test"},{"post_id":"post10","title":"Test","score":70,"reason":"Test"}]`
+						// First batch: 10 posts
+						for i := 1; i <= 10; i++ {
+							scoreItems = append(scoreItems, fmt.Sprintf(
+								`{"post_id":"post%d","title":"Test","score":70,"reason":"Test"}`, i))
+						}
+					} else {
+						// Second batch: 5 posts
+						for i := 11; i <= 15; i++ {
+							scoreItems = append(scoreItems, fmt.Sprintf(
+								`{"post_id":"post%d","title":"Test","score":70,"reason":"Test"}`, i))
+						}
 					}
+					scores := "[" + strings.Join(scoreItems, ",") + "]"
+					
 					return openai.ChatCompletionResponse{
 						Choices: []openai.ChatCompletionChoice{{
 							Message: openai.ChatCompletionMessage{

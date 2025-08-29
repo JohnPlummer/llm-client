@@ -3,10 +3,10 @@ module github.com/JohnPlummer/post-scorer
 go 1.23.1
 
 require (
-	github.com/JohnPlummer/reddit-client v0.9.0
 	github.com/onsi/ginkgo/v2 v2.23.4
 	github.com/onsi/gomega v1.36.3
 	github.com/sashabaranov/go-openai v1.37.0
+	github.com/sethvargo/go-retry v0.2.4
 	github.com/sony/gobreaker/v2 v2.0.0
 )
 
@@ -20,7 +20,6 @@ require (
 	golang.org/x/net v0.37.0 // indirect
 	golang.org/x/sys v0.32.0 // indirect
 	golang.org/x/text v0.23.0 // indirect
-	golang.org/x/time v0.5.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

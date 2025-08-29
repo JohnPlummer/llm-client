@@ -1,22 +1,26 @@
 # Post Scorer
 
-A Go package that uses OpenAI's GPT to score Reddit posts based on some arbitrary criteria specified in a custom prompt.
+A production-ready Go library for scoring text content using OpenAI's GPT models, with built-in resilience patterns, metrics, and generic text support.
 
 ## Overview
 
-The scorer evaluates Reddit posts and returns a slice of `ScoredPost` structs containing:
+Post-Scorer provides intelligent text scoring with enterprise-grade features:
 
-- The original post
-- A relevance score (0-100)
-- A reason for the score
+- **Generic Text Scoring**: Score any text content, not just Reddit posts
+- **Resilience Patterns**: Circuit breaker and retry with backoff
+- **Production Monitoring**: Prometheus metrics integration
+- **Template Support**: Dynamic prompt generation with Go templates
+- **Batch Processing**: Efficient handling of multiple items
 
 ## Installation
 
 ```bash
-go get github.com/JohnPlummer/post-scorer@v0.9.0
+go get github.com/JohnPlummer/post-scorer@v0.10.0
 ```
 
-## Usage
+## Quick Start
+
+### Basic Usage (Generic Text)
 
 ```go
 package main
@@ -24,49 +28,146 @@ package main
 import (
     "context"
     "github.com/JohnPlummer/post-scorer/scorer"
-    "github.com/JohnPlummer/reddit-client/reddit"
 )
 
 func main() {
-    // Initialize the scorer
-    s, err := scorer.New(scorer.Config{
-        OpenAIKey: "your-api-key",
-    })
+    // Create scorer with production configuration
+    s, err := scorer.BuildProductionScorer("your-api-key")
     if err != nil {
         panic(err)
     }
 
-    // Score some posts
-    posts := []*reddit.Post{
-        {
-            ID:    "post1",
-            Title: "Best restaurants in town?",
-        },
+    // Score text items
+    items := []scorer.TextItem{
+        {ID: "1", Title: "Best coffee shops in Seattle", Body: "Looking for recommendations..."},
+        {ID: "2", Title: "Moving to Portland", Body: "What neighborhoods are family-friendly?"},
     }
 
-    scored, err := s.ScorePosts(context.Background(), posts)
+    results, err := s.ScoreTexts(context.Background(), items)
     if err != nil {
         panic(err)
     }
 
-    // Use the scored posts
-    for _, post := range scored {
-        fmt.Printf("Post: %s\nScore: %d\nReason: %s\n\n", 
-            post.Post.Title, 
-            post.Score, 
-            post.Reason)
+    // Use the results
+    for _, result := range results {
+        fmt.Printf("Title: %s\nScore: %d\nReason: %s\n\n", 
+            result.Item.Title, 
+            result.Score, 
+            result.Reason)
     }
 }
 ```
 
+### Legacy Reddit Support
+
+For backward compatibility with Reddit posts:
+
+```go
+import "github.com/JohnPlummer/reddit-client/reddit"
+
+// Use legacy Reddit-specific interface
+posts := []*reddit.Post{
+    {ID: "post1", Title: "Best restaurants in town?"},
+}
+
+scoredPosts, err := s.ScorePosts(context.Background(), posts)
+```
+
+## Resilience Features
+
+### Production Configuration
+
+The library includes production-ready resilience patterns:
+
+```go
+// Create a production-ready scorer with all resilience features
+scorer, err := scorer.BuildProductionScorer("api-key")
+
+// Or customize configuration
+cfg := scorer.NewDefaultConfig("api-key")
+cfg = cfg.WithCircuitBreaker()  // Add circuit breaker
+cfg = cfg.WithRetry()            // Add retry logic
+cfg = cfg.WithMaxConcurrent(10)  // Set concurrency limit
+
+scorer, err := scorer.NewIntegratedScorer(cfg)
+```
+
+### Circuit Breaker
+
+Prevents cascade failures by stopping requests when error threshold is reached:
+
+```go
+cfg := scorer.Config{
+    APIKey:               "api-key",
+    EnableCircuitBreaker: true,
+    CircuitBreakerConfig: &scorer.CircuitBreakerConfig{
+        MaxRequests: 3,                    // Requests allowed in half-open state
+        Interval:    10 * time.Second,      // Reset interval
+        Timeout:     60 * time.Second,      // Time before trying half-open
+        OnStateChange: func(name string, from, to gobreaker.State) {
+            log.Printf("Circuit breaker %s: %v -> %v", name, from, to)
+        },
+    },
+}
+```
+
+### Retry with Backoff
+
+Automatically retries transient failures with configurable strategies:
+
+```go
+cfg := scorer.Config{
+    APIKey:      "api-key",
+    EnableRetry: true,
+    RetryConfig: &scorer.RetryConfig{
+        MaxAttempts:  3,
+        Strategy:     scorer.RetryStrategyExponential,
+        InitialDelay: 100 * time.Millisecond,
+        MaxDelay:     5 * time.Second,
+        Jitter:       0.1,  // 10% jitter to prevent thundering herd
+    },
+}
+```
+
+Available retry strategies:
+- `RetryStrategyConstant`: Fixed delay between attempts
+- `RetryStrategyExponential`: Exponentially increasing delay
+- `RetryStrategyFibonacci`: Fibonacci sequence delays
+
+### Prometheus Metrics
+
+Built-in metrics for production monitoring:
+
+```go
+// Metrics are automatically recorded when using IntegratedScorer
+// Expose metrics endpoint
+http.Handle("/metrics", scorer.GetMetricsHandler())
+
+// Available metrics:
+// - text_scorer_requests_total
+// - text_scorer_request_duration_seconds
+// - text_scorer_errors_total
+// - text_scorer_circuit_breaker_state
+// - text_scorer_retry_attempts
+// - text_scorer_score_distribution
+```
+
 ## Configuration
 
-The `Config` struct accepts:
+### Core Configuration
 
-- `OpenAIKey` (required): Your OpenAI API key
+- `APIKey` (required): Your OpenAI API key
 - `Model` (optional): OpenAI model to use (defaults to GPT-4o-mini)
 - `PromptText` (optional): Custom prompt template
-- `MaxConcurrent` (optional): For rate limiting
+- `MaxConcurrent` (optional): Concurrent batch processing limit
+- `Timeout` (optional): Request timeout (default: 30s)
+
+### Resilience Configuration
+
+- `EnableCircuitBreaker`: Enable circuit breaker pattern
+- `CircuitBreakerConfig`: Circuit breaker settings
+- `EnableRetry`: Enable retry with backoff
+- `RetryConfig`: Retry behavior settings
 
 ## Advanced Usage
 

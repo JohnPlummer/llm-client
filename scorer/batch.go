@@ -9,16 +9,11 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/JohnPlummer/reddit-client/reddit"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
-func (s *scorer) processBatch(ctx context.Context, batch []*reddit.Post, options *scoringOptions) ([]*ScoredPost, error) {
-	return s.processBatchWithContext(ctx, batch, nil, options)
-}
-
-func (s *scorer) processBatchWithContext(ctx context.Context, batch []*reddit.Post, contexts []ScoringContext, options *scoringOptions) ([]*ScoredPost, error) {
+func (s *scorer) processBatch(ctx context.Context, batch []TextItem, options *scoringOptions) ([]ScoredItem, error) {
 	// Determine which prompt to use
 	promptText := s.prompt
 	if options != nil && options.promptText != "" {
@@ -26,48 +21,51 @@ func (s *scorer) processBatchWithContext(ctx context.Context, batch []*reddit.Po
 	}
 	
 	// Format the prompt with appropriate data
-	var prompt string
-	var err error
-	if contexts != nil {
-		prompt, err = s.formatPromptWithContext(promptText, contexts, options)
-	} else {
-		prompt, err = s.formatPrompt(promptText, batch, options)
-	}
+	prompt, err := s.formatPrompt(promptText, batch, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to format prompt: %w", err)
 	}
 
-	slog.Info("Processing batch of posts", "batch_size", len(batch))
+	slog.Info("Processing batch of text items", "batch_size", len(batch))
 
 	schema, err := jsonschema.GenerateSchemaForType(scoreResponse{})
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate JSON schema for batch of %d posts: %w", len(batch), err)
+		return nil, fmt.Errorf("failed to generate JSON schema for batch of %d items: %w", len(batch), err)
 	}
 
 	resp, err := s.createChatCompletion(ctx, prompt, schema, options)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create chat completion for batch of %d posts: %w", len(batch), err)
+		return nil, fmt.Errorf("failed to create chat completion for batch of %d items: %w", len(batch), err)
 	}
 
-	scores, err := s.parseResponse(resp, len(batch))
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse response for batch of %d posts: %w", len(batch), err)
+	// Parse response
+	content := resp.Choices[0].Message.Content
+	
+	slog.Debug("Received response from OpenAI", "content_length", len(content))
+	
+	var scores scoreResponse
+	if err := json.Unmarshal([]byte(content), &scores); err != nil {
+		slog.Error("Failed to parse response JSON", "error", err, "content", content)
+		return nil, fmt.Errorf("failed to parse response JSON: %w", err)
 	}
 
-	return s.createScoredPosts(batch, scores)
+	slog.Info("Received scores from OpenAI", "scores_count", len(scores.Scores))
+
+	// Map scores back to items
+	return s.mapScoresToItems(batch, scores.Scores), nil
 }
 
-func (s *scorer) buildChatRequest(prompt string, schema *jsonschema.Definition, options *scoringOptions) openai.ChatCompletionRequest {
-	// Determine which model to use
+func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema *jsonschema.Definition, options *scoringOptions) (openai.ChatCompletionResponse, error) {
+	// Determine model to use
 	model := s.config.Model
 	if model == "" {
-		model = openai.GPT4oMini // Default model
+		model = openai.GPT4oMini
 	}
 	if options != nil && options.model != "" {
-		model = options.model // Override with options
+		model = options.model
 	}
-	
-	return openai.ChatCompletionRequest{
+
+	request := openai.ChatCompletionRequest{
 		Model: model,
 		Messages: []openai.ChatCompletionMessage{
 			{
@@ -82,216 +80,122 @@ func (s *scorer) buildChatRequest(prompt string, schema *jsonschema.Definition, 
 		ResponseFormat: &openai.ChatCompletionResponseFormat{
 			Type: openai.ChatCompletionResponseFormatTypeJSONSchema,
 			JSONSchema: &openai.ChatCompletionResponseFormatJSONSchema{
+				Name:   "score_response",
+				Strict: true,
 				Schema: schema,
-				Name:   "post_scoring",
 			},
 		},
 	}
+
+	slog.Debug("Sending request to OpenAI", "model", model, "prompt_length", len(prompt))
+
+	return s.client.CreateChatCompletion(ctx, request)
 }
 
-func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema *jsonschema.Definition, options *scoringOptions) (*openai.ChatCompletionResponse, error) {
-	req := s.buildChatRequest(prompt, schema, options)
-	
-	resp, err := s.client.CreateChatCompletion(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("OpenAI API request failed: %w", err)
+func (s *scorer) mapScoresToItems(items []TextItem, scores []scoreItem) []ScoredItem {
+	scoreMap := make(map[string]scoreItem)
+	for _, score := range scores {
+		scoreMap[score.ItemID] = score
 	}
 
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("OpenAI returned empty response with no choices")
-	}
-
-	return &resp, nil
-}
-
-func (s *scorer) validateResponse(result scoreResponse, expectedPostCount int) error {
-	// Check if we received scores for all expected posts
-	if len(result.Scores) < expectedPostCount {
-		slog.WarnContext(context.Background(), "incomplete scores from OpenAI",
-			"expected_count", expectedPostCount,
-			"received_count", len(result.Scores))
-	}
-
-	for _, score := range result.Scores {
-		if score.Score < 0 || score.Score > 100 {
-			return fmt.Errorf("invalid score %d for post %s: score must be between 0 and 100", score.Score, score.PostID)
-		}
-	}
-	
-	return nil
-}
-
-func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPostCount int) (map[string]scoreItem, error) {
-	var result scoreResponse
-	if err := json.Unmarshal([]byte(resp.Choices[0].Message.Content), &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal OpenAI response (expected %d posts): %w", expectedPostCount, err)
-	}
-
-	if err := s.validateResponse(result, expectedPostCount); err != nil {
-		return nil, err
-	}
-
-	scores := make(map[string]scoreItem)
-	for _, score := range result.Scores {
-		scores[score.PostID] = score
-	}
-
-	return scores, nil
-}
-
-func (s *scorer) createScoredPosts(batch []*reddit.Post, scores map[string]scoreItem) ([]*ScoredPost, error) {
-	results := make([]*ScoredPost, len(batch))
-	for i, post := range batch {
-		score, exists := scores[post.ID]
-		if !exists {
-			slog.WarnContext(context.Background(), "missing score from OpenAI response, assigning default score",
-				"post_id", post.ID,
-				"title", post.Title)
-
-			results[i] = &ScoredPost{
-				Post:   post,
+	results := make([]ScoredItem, len(items))
+	for i, item := range items {
+		if score, found := scoreMap[item.ID]; found {
+			// Validate score range
+			if score.Score < 0 || score.Score > 100 {
+				slog.Warn("Score out of range, clamping to valid range",
+					"item_id", item.ID,
+					"original_score", score.Score)
+				if score.Score < 0 {
+					score.Score = 0
+				} else if score.Score > 100 {
+					score.Score = 100
+				}
+			}
+			
+			results[i] = ScoredItem{
+				Item:   item,
+				Score:  score.Score,
+				Reason: score.Reason,
+			}
+			slog.Debug("Mapped score to item",
+				"item_id", item.ID,
+				"score", score.Score)
+		} else {
+			slog.Warn("Score not found for item, using default",
+				"item_id", item.ID)
+			results[i] = ScoredItem{
+				Item:   item,
 				Score:  0,
-				Reason: "No score provided by model - automatically assigned lowest relevance score",
-			}
-			continue
-		}
-
-		results[i] = &ScoredPost{
-			Post:   post,
-			Score:  score.Score,
-			Reason: score.Reason,
-		}
-
-		slog.Debug("Post scored",
-			"id", post.ID,
-			"title", post.Title,
-			"score", score.Score,
-			"reason", score.Reason)
-	}
-
-	return results, nil
-}
-
-func formatPostsForBatch(posts []*reddit.Post) string {
-	input := struct {
-		Posts []*reddit.Post `json:"posts"`
-	}{
-		Posts: posts,
-	}
-
-	jsonData, err := json.MarshalIndent(input, "", "  ")
-	if err != nil {
-		slog.Error("failed to marshal posts", "error", err)
-		return ""
-	}
-
-	return string(jsonData)
-}
-
-// formatPrompt formats a prompt with template support
-func (s *scorer) formatPrompt(promptText string, posts []*reddit.Post, options *scoringOptions) (string, error) {
-	// Check if prompt contains template syntax
-	if strings.Contains(promptText, "{{") && strings.Contains(promptText, "}}") {
-		// Use template processing
-		tmpl, err := template.New("prompt").Parse(promptText)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse prompt template: %w (template: %.100s...)", err, promptText)
-		}
-		
-		// Create template data
-		data := map[string]interface{}{
-			"Posts": formatPostsForBatch(posts),
-		}
-		
-		// Add extra context from options if available
-		if options != nil && options.extraContext != nil {
-			for k, v := range options.extraContext {
-				data[k] = v
+				Reason: "Score not found in response",
 			}
 		}
-		
-		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, data); err != nil {
-			return "", fmt.Errorf("failed to execute prompt template: %w (available fields: %v)", err, getMapKeys(data))
-		}
-		
-		return buf.String(), nil
 	}
 	
-	// Fall back to simple sprintf for backward compatibility
+	return results
+}
+
+func (s *scorer) formatPrompt(promptText string, items []TextItem, options *scoringOptions) (string, error) {
+	// Check if prompt uses Go template syntax
+	if strings.Contains(promptText, "{{") && strings.Contains(promptText, "}}") {
+		return s.formatPromptWithTemplate(promptText, items, options)
+	}
+	
+	// Legacy sprintf-style formatting
 	if strings.Contains(promptText, "%s") {
-		return fmt.Sprintf(promptText, formatPostsForBatch(posts)), nil
+		itemsText := s.formatItemsAsText(items)
+		return fmt.Sprintf(promptText, itemsText), nil
 	}
 	
-	// No placeholders, return as-is
-	return promptText, nil
+	// If no placeholders, append items to the prompt
+	itemsText := s.formatItemsAsText(items)
+	return fmt.Sprintf("%s\n\nItems to score:\n%s", promptText, itemsText), nil
 }
 
-// formatPromptWithContext formats a prompt with scoring contexts
-func (s *scorer) formatPromptWithContext(promptText string, contexts []ScoringContext, options *scoringOptions) (string, error) {
-	// Convert contexts to posts for JSON formatting
-	posts := make([]*reddit.Post, len(contexts))
-	for i, ctx := range contexts {
-		posts[i] = ctx.Post
+func (s *scorer) formatPromptWithTemplate(promptText string, items []TextItem, options *scoringOptions) (string, error) {
+	tmpl, err := template.New("prompt").Parse(promptText)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse prompt template: %w", err)
 	}
 	
-	// Check if prompt contains template syntax
-	if strings.Contains(promptText, "{{") && strings.Contains(promptText, "}}") {
-		// Use template processing
-		tmpl, err := template.New("prompt").Parse(promptText)
-		if err != nil {
-			return "", fmt.Errorf("failed to parse prompt template: %w (template: %.100s...)", err, promptText)
-		}
-		
-		// Create template data with contexts
-		contextData := make([]map[string]interface{}, len(contexts))
-		for i, ctx := range contexts {
-			postData := map[string]interface{}{
-				"ID":       ctx.Post.ID,
-				"Title":    ctx.Post.Title,
-				"Body":     ctx.Post.SelfText,
-				"PostTitle": ctx.Post.Title,
-				"PostBody":  ctx.Post.SelfText,
-			}
-			
-			// Add extra data from context
-			for k, v := range ctx.ExtraData {
-				postData[k] = v
-			}
-			
-			contextData[i] = postData
-		}
-		
-		data := map[string]interface{}{
-			"Posts":    formatPostsForBatch(posts),
-			"Contexts": contextData,
-		}
-		
-		// Add extra context from options if available
-		if options != nil && options.extraContext != nil {
-			for k, v := range options.extraContext {
-				data[k] = v
-			}
-		}
-		
-		var buf bytes.Buffer
-		if err := tmpl.Execute(&buf, data); err != nil {
-			return "", fmt.Errorf("failed to execute prompt template: %w (available fields: %v)", err, getMapKeys(data))
-		}
-		
-		return buf.String(), nil
+	// Prepare template data
+	data := map[string]interface{}{
+		"Items": items,
+		"Count": len(items),
 	}
 	
-	// Fall back to simple formatting
-	return s.formatPrompt(promptText, posts, options)
-}
-
-// getMapKeys returns the keys of a map for debugging purposes
-func getMapKeys(m map[string]interface{}) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
+	// Add extra context if provided
+	if options != nil && options.extraContext != nil {
+		for k, v := range options.extraContext {
+			data[k] = v
+		}
 	}
-	return keys
+	
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		// Provide helpful error message with template preview
+		preview := promptText
+		if len(preview) > 100 {
+			preview = preview[:100] + "..."
+		}
+		return "", fmt.Errorf("failed to execute template '%s': %w", preview, err)
+	}
+	
+	return buf.String(), nil
 }
 
+func (s *scorer) formatItemsAsText(items []TextItem) string {
+	var sb strings.Builder
+	for i, item := range items {
+		sb.WriteString(fmt.Sprintf("Item %d (ID: %s):\n", i+1, item.ID))
+		sb.WriteString(item.Content)
+		if item.Metadata != nil && len(item.Metadata) > 0 {
+			sb.WriteString("\nMetadata: ")
+			for k, v := range item.Metadata {
+				sb.WriteString(fmt.Sprintf("%s=%v ", k, v))
+			}
+		}
+		sb.WriteString("\n\n")
+	}
+	return sb.String()
+}

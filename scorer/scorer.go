@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/JohnPlummer/reddit-client/reddit"
 	"github.com/sashabaranov/go-openai"
 )
 
@@ -28,8 +27,8 @@ func init() {
 	systemPrompt = string(promptBytes)
 }
 
-// New creates a new instance of the Scorer
-func New(cfg Config) (Scorer, error) {
+// NewTextScorer creates a new instance of the TextScorer
+func NewTextScorer(cfg Config) (TextScorer, error) {
 	if initError != nil {
 		return nil, initError
 	}
@@ -38,12 +37,19 @@ func New(cfg Config) (Scorer, error) {
 		return nil, batchPromptError
 	}
 	
-	if cfg.OpenAIKey == "" {
+	if cfg.APIKey == "" {
 		return nil, ErrMissingAPIKey
 	}
 	
-	if cfg.PromptText != "" && !strings.Contains(cfg.PromptText, "%s") {
-		return nil, errors.New("custom prompt must contain %s placeholder for posts")
+	// Validate prompt template if provided
+	if cfg.PromptText != "" {
+		// Check for either Go template syntax or sprintf placeholder
+		hasTemplate := strings.Contains(cfg.PromptText, "{{") && strings.Contains(cfg.PromptText, "}}")
+		hasSprintf := strings.Contains(cfg.PromptText, "%s")
+		if !hasTemplate && !hasSprintf {
+			slog.Warn("Custom prompt has no placeholders, items will be appended",
+				"prompt_preview", cfg.PromptText[:min(50, len(cfg.PromptText))])
+		}
 	}
 	
 	if cfg.MaxConcurrent < 0 {
@@ -55,12 +61,22 @@ func New(cfg Config) (Scorer, error) {
 		cfg.MaxConcurrent = 1
 	}
 
+	// Set default model if not specified
+	if cfg.Model == "" {
+		cfg.Model = openai.GPT4oMini
+	}
+
+	// Set default timeout if not specified
+	if cfg.Timeout == 0 {
+		cfg.Timeout = 30 // 30 seconds default
+	}
+
 	prompt := batchScorePrompt
 	if cfg.PromptText != "" {
 		prompt = cfg.PromptText
 	}
 
-	client := openai.NewClient(cfg.OpenAIKey)
+	client := openai.NewClient(cfg.APIKey)
 	return &scorer{
 		client: client,
 		config: cfg,
@@ -68,78 +84,34 @@ func New(cfg Config) (Scorer, error) {
 	}, nil
 }
 
-
-// WithPrompt returns a function that sets a custom prompt for the scorer
-func WithPrompt(prompt string) func(*scorer) {
-	return func(s *scorer) {
-		s.prompt = prompt
-	}
+// ScoreTexts scores a slice of text items
+func (s *scorer) ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
+	return s.ScoreTextsWithOptions(ctx, items, opts...)
 }
 
-// WithMaxConcurrent returns a function that sets MaxConcurrent for the scorer
-func WithMaxConcurrent(maxConcurrent int) func(*scorer) {
-	return func(s *scorer) {
-		s.config.MaxConcurrent = maxConcurrent
-	}
-}
-
-// NewWithClient creates a new scorer with a custom OpenAI client and options
-func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
-	s := &scorer{
-		client: client,
-		prompt: batchScorePrompt,
-	}
-	for _, opt := range opts {
-		opt(s)
-	}
-	return s
-}
-
-// NewWithClientAndOptions creates a new scorer with a custom OpenAI client and ScoringOptions
-func NewWithClientAndOptions(client OpenAIClient, prompt string, maxConcurrent int) Scorer {
-	s := &scorer{
-		client: client,
-		prompt: prompt,
-		config: Config{
-			MaxConcurrent: maxConcurrent,
-		},
-	}
-	if s.prompt == "" {
-		s.prompt = batchScorePrompt
-	}
-	if s.config.MaxConcurrent == 0 {
-		s.config.MaxConcurrent = 1
-	}
-	return s
-}
-
-// ScorePosts evaluates and scores a slice of Reddit posts
-func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error) {
-	return s.ScorePostsWithOptions(ctx, posts)
-}
-
-// ScorePostsWithOptions evaluates and scores a slice of Reddit posts with options
-func (s *scorer) ScorePostsWithOptions(ctx context.Context, posts []*reddit.Post, opts ...ScoringOption) ([]*ScoredPost, error) {
-	if posts == nil {
-		return nil, errors.New("posts cannot be nil")
+// ScoreTextsWithOptions scores text items with runtime options
+func (s *scorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
+	if items == nil {
+		return nil, errors.New("items cannot be nil")
 	}
 	
-	if len(posts) == 0 {
-		return []*ScoredPost{}, nil
+	if len(items) == 0 {
+		return []ScoredItem{}, nil
 	}
 	
-	for i, post := range posts {
-		if post == nil {
-			return nil, fmt.Errorf("post at index %d is nil", i)
+	// Validate items
+	for i, item := range items {
+		if item.ID == "" {
+			return nil, fmt.Errorf("item at index %d has empty ID", i)
 		}
-		if post.ID == "" {
-			return nil, fmt.Errorf("post at index %d has empty ID", i)
+		if item.Content == "" {
+			slog.Warn("Item has empty content", "item_id", item.ID, "index", i)
 		}
 	}
 
 	// Apply default options
 	options := &scoringOptions{
-		model: s.config.Model, // Default from config
+		model: s.config.Model,
 	}
 	
 	// Apply provided options
@@ -148,9 +120,9 @@ func (s *scorer) ScorePostsWithOptions(ctx context.Context, posts []*reddit.Post
 	}
 
 	// Create batches
-	var batches [][]*reddit.Post
-	for i := 0; i < len(posts); i += maxBatchSize {
-		batch := posts[i:min(i+maxBatchSize, len(posts))]
+	var batches [][]TextItem
+	for i := 0; i < len(items); i += maxBatchSize {
+		batch := items[i:min(i+maxBatchSize, len(items))]
 		batches = append(batches, batch)
 	}
 
@@ -161,8 +133,41 @@ func (s *scorer) ScorePostsWithOptions(ctx context.Context, posts []*reddit.Post
 	return s.processConcurrently(ctx, batches, options)
 }
 
-func (s *scorer) processSequentially(ctx context.Context, batches [][]*reddit.Post, options *scoringOptions) ([]*ScoredPost, error) {
-	var allResults []*ScoredPost
+// GetHealth returns the current health status of the scorer
+func (s *scorer) GetHealth(ctx context.Context) HealthStatus {
+	// Basic health check - attempt a simple API call
+	testItem := []TextItem{
+		{ID: "health-check", Content: "test"},
+	}
+	
+	_, err := s.ScoreTexts(ctx, testItem)
+	if err != nil {
+		return HealthStatus{
+			Healthy: false,
+			Status:  "unhealthy",
+			Details: map[string]interface{}{
+				"error":    err.Error(),
+				"api_key":  s.config.APIKey != "",
+				"model":    s.config.Model,
+			},
+		}
+	}
+	
+	return HealthStatus{
+		Healthy: true,
+		Status:  "healthy",
+		Details: map[string]interface{}{
+			"api_status":      "connected",
+			"model":           s.config.Model,
+			"max_concurrent":  s.config.MaxConcurrent,
+			"circuit_breaker": s.config.EnableCircuitBreaker,
+			"retry_enabled":   s.config.EnableRetry,
+		},
+	}
+}
+
+func (s *scorer) processSequentially(ctx context.Context, batches [][]TextItem, options *scoringOptions) ([]ScoredItem, error) {
+	var allResults []ScoredItem
 	for i, batch := range batches {
 		results, err := s.processBatch(ctx, batch, options)
 		if err != nil {
@@ -171,18 +176,18 @@ func (s *scorer) processSequentially(ctx context.Context, batches [][]*reddit.Po
 		allResults = append(allResults, results...)
 	}
 
-	slog.Info("All posts scored successfully",
-		"total_posts", len(allResults),
+	slog.Info("All items scored successfully",
+		"total_items", len(allResults),
 		"total_batches", len(batches),
 		"mode", "sequential")
 
 	return allResults, nil
 }
 
-func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Post, options *scoringOptions) ([]*ScoredPost, error) {
+func (s *scorer) processConcurrently(ctx context.Context, batches [][]TextItem, options *scoringOptions) ([]ScoredItem, error) {
 	type batchResult struct {
 		index   int
-		results []*ScoredPost
+		results []ScoredItem
 		err     error
 	}
 
@@ -192,8 +197,8 @@ func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Po
 
 	// Process batches concurrently
 	for i, batch := range batches {
-		go func(index int, batch []*reddit.Post) {
-			sem <- struct{}{} // Acquire semaphore
+		go func(index int, batch []TextItem) {
+			sem <- struct{}{}        // Acquire semaphore
 			defer func() { <-sem }() // Release semaphore
 
 			batchResults, err := s.processBatch(ctx, batch, options)
@@ -206,7 +211,7 @@ func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Po
 	}
 
 	// Collect results in order
-	allResults := make([][]*ScoredPost, len(batches))
+	allResults := make([][]ScoredItem, len(batches))
 	for i := 0; i < len(batches); i++ {
 		result := <-results
 		if result.err != nil {
@@ -216,13 +221,13 @@ func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Po
 	}
 
 	// Flatten results
-	var flatResults []*ScoredPost
+	var flatResults []ScoredItem
 	for _, batchResults := range allResults {
 		flatResults = append(flatResults, batchResults...)
 	}
 
-	slog.Info("All posts scored successfully",
-		"total_posts", len(flatResults),
+	slog.Info("All items scored successfully",
+		"total_items", len(flatResults),
 		"total_batches", len(batches),
 		"mode", "concurrent",
 		"max_concurrent", s.config.MaxConcurrent)
@@ -230,129 +235,32 @@ func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Po
 	return flatResults, nil
 }
 
-// ScorePostsWithContext evaluates and scores posts with additional context
-func (s *scorer) ScorePostsWithContext(ctx context.Context, contexts []ScoringContext, opts ...ScoringOption) ([]*ScoredPost, error) {
-	if contexts == nil {
-		return nil, errors.New("contexts cannot be nil")
+// Helper function for min
+func min(a, b int) int {
+	if a < b {
+		return a
 	}
-	
-	if len(contexts) == 0 {
-		return []*ScoredPost{}, nil
-	}
-	
-	// Extract posts from contexts for validation
-	posts := make([]*reddit.Post, len(contexts))
-	for i, context := range contexts {
-		if context.Post == nil {
-			return nil, fmt.Errorf("context at index %d has nil post", i)
-		}
-		if context.Post.ID == "" {
-			return nil, fmt.Errorf("post at index %d has empty ID", i)
-		}
-		posts[i] = context.Post
-	}
-
-	// Apply default options
-	options := &scoringOptions{
-		model: s.config.Model, // Default from config
-	}
-	
-	// Apply provided options
-	for _, opt := range opts {
-		opt(options)
-	}
-
-	// Create batches of contexts
-	var batches [][]ScoringContext
-	for i := 0; i < len(contexts); i += maxBatchSize {
-		batch := contexts[i:min(i+maxBatchSize, len(contexts))]
-		batches = append(batches, batch)
-	}
-
-	// Process batches based on MaxConcurrent setting
-	if s.config.MaxConcurrent <= 1 {
-		return s.processContextsSequentially(ctx, batches, options)
-	}
-	return s.processContextsConcurrently(ctx, batches, options)
+	return b
 }
 
-func (s *scorer) processContextsSequentially(ctx context.Context, batches [][]ScoringContext, options *scoringOptions) ([]*ScoredPost, error) {
-	var allResults []*ScoredPost
-	for i, batch := range batches {
-		// Extract posts from contexts
-		posts := make([]*reddit.Post, len(batch))
-		for j, context := range batch {
-			posts[j] = context.Post
-		}
-		
-		results, err := s.processBatchWithContext(ctx, posts, batch, options)
-		if err != nil {
-			return nil, fmt.Errorf("processing batch %d: %w", i, err)
-		}
-		allResults = append(allResults, results...)
-	}
+// DEPRECATED: Legacy constructors for backward compatibility reference
+// These will be removed in v1.0.0
 
-	slog.Info("All posts scored successfully with context",
-		"total_posts", len(allResults),
-		"total_batches", len(batches),
-		"mode", "sequential")
-
-	return allResults, nil
+// New creates a new instance of the Scorer (DEPRECATED - use NewTextScorer)
+func New(cfg Config) (Scorer, error) {
+	slog.Warn("Using deprecated New() constructor, please migrate to NewTextScorer()")
+	// Convert to legacy interface wrapper if needed
+	return nil, errors.New("deprecated: use NewTextScorer instead")
 }
 
-func (s *scorer) processContextsConcurrently(ctx context.Context, batches [][]ScoringContext, options *scoringOptions) ([]*ScoredPost, error) {
-	type batchResult struct {
-		index   int
-		results []*ScoredPost
-		err     error
-	}
+// NewWithClient creates a new scorer with a custom OpenAI client (DEPRECATED)
+func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
+	slog.Warn("Using deprecated NewWithClient() constructor")
+	return nil
+}
 
-	// Semaphore to limit concurrent processing
-	sem := make(chan struct{}, s.config.MaxConcurrent)
-	results := make(chan batchResult, len(batches))
-
-	// Process batches concurrently
-	for i, batch := range batches {
-		go func(index int, batch []ScoringContext) {
-			sem <- struct{}{} // Acquire semaphore
-			defer func() { <-sem }() // Release semaphore
-
-			// Extract posts from contexts
-			posts := make([]*reddit.Post, len(batch))
-			for j, context := range batch {
-				posts[j] = context.Post
-			}
-			
-			batchResults, err := s.processBatchWithContext(ctx, posts, batch, options)
-			results <- batchResult{
-				index:   index,
-				results: batchResults,
-				err:     err,
-			}
-		}(i, batch)
-	}
-
-	// Collect results in order
-	allResults := make([][]*ScoredPost, len(batches))
-	for i := 0; i < len(batches); i++ {
-		result := <-results
-		if result.err != nil {
-			return nil, fmt.Errorf("processing batch %d: %w", result.index, result.err)
-		}
-		allResults[result.index] = result.results
-	}
-
-	// Flatten results
-	var flatResults []*ScoredPost
-	for _, batchResults := range allResults {
-		flatResults = append(flatResults, batchResults...)
-	}
-
-	slog.Info("All posts scored successfully with context",
-		"total_posts", len(flatResults),
-		"total_batches", len(batches),
-		"mode", "concurrent",
-		"max_concurrent", s.config.MaxConcurrent)
-
-	return flatResults, nil
+// NewWithClientAndOptions creates a new scorer with options (DEPRECATED)
+func NewWithClientAndOptions(client OpenAIClient, prompt string, maxConcurrent int) Scorer {
+	slog.Warn("Using deprecated NewWithClientAndOptions() constructor")
+	return nil
 }

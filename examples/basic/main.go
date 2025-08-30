@@ -77,9 +77,16 @@ func main() {
 	customScorer := createCustomScorer(apiKey)
 	
 	// Score with custom prompt template
+	customPrompt := `Rate the following text for relevance to local events and activities.
+Score 0-100 where 100 is highly relevant to local events.
+Output ONLY valid JSON in this format:
+{"version":"1.0","scores":[{"post_id":"ID","score":0-100,"reason":"explanation"}]}
+
+Text to score:
+%s`
 	customResults, err := customScorer.ScoreTextsWithOptions(ctx, items,
 		scorer.WithModel("gpt-4o-mini"),
-		scorer.WithPromptTemplate("Rate this for relevance to local events: {{.Content}}"),
+		scorer.WithPromptTemplate(customPrompt),
 	)
 	if err != nil {
 		slog.Warn("Custom scoring failed", "error", err)

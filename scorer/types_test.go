@@ -18,7 +18,7 @@ func TestScorer(t *testing.T) {
 	RunSpecs(t, "Scorer Suite")
 }
 
-var _ = Describe("Generic Text Scoring Types", func() {
+var _ = Describe("Types", func() {
 	Describe("TextItem", func() {
 		It("should create a valid text item with required fields", func() {
 			item := scorer.TextItem{
@@ -94,10 +94,10 @@ var _ = Describe("Generic Text Scoring Types", func() {
 		})
 	})
 
-	Describe("TextScorer Interface", func() {
+	Describe("Scorer Interface", func() {
 		Context("ScoreTexts method", func() {
 			It("should be implemented by scorer struct", func() {
-				var _ scorer.TextScorer = (*mockTextScorer)(nil)
+				var _ scorer.Scorer = (*mockTextScorer)(nil)
 			})
 
 			It("should accept context and text items", func() {

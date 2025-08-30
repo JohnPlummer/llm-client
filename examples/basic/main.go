@@ -130,7 +130,7 @@ func setupLogger() {
 	slog.SetDefault(logger)
 }
 
-func createCustomScorer(apiKey string) scorer.TextScorer {
+func createCustomScorer(apiKey string) scorer.Scorer {
 	// Create a custom configuration with specific settings
 	cfg := scorer.NewDefaultConfig(apiKey)
 	cfg = cfg.WithCircuitBreaker()

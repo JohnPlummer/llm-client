@@ -27,8 +27,8 @@ func init() {
 	systemPrompt = string(promptBytes)
 }
 
-// NewTextScorer creates a new instance of the TextScorer
-func NewTextScorer(cfg Config) (TextScorer, error) {
+// NewScorer creates a new instance of the Scorer
+func NewScorer(cfg Config) (Scorer, error) {
 	if initError != nil {
 		return nil, initError
 	}
@@ -246,21 +246,21 @@ func min(a, b int) int {
 // DEPRECATED: Legacy constructors for backward compatibility reference
 // These will be removed in v1.0.0
 
-// New creates a new instance of the Scorer (DEPRECATED - use NewTextScorer)
-func New(cfg Config) (Scorer, error) {
-	slog.Warn("Using deprecated New() constructor, please migrate to NewTextScorer()")
+// New creates a new instance of the Scorer (DEPRECATED - use NewScorer)
+func New(cfg Config) (RedditScorer, error) {
+	slog.Warn("Using deprecated New() constructor, please migrate to NewScorer()")
 	// Convert to legacy interface wrapper if needed
-	return nil, errors.New("deprecated: use NewTextScorer instead")
+	return nil, errors.New("deprecated: use NewScorer instead")
 }
 
 // NewWithClient creates a new scorer with a custom OpenAI client (DEPRECATED)
-func NewWithClient(client OpenAIClient, opts ...func(*scorer)) Scorer {
+func NewWithClient(client OpenAIClient, opts ...func(*scorer)) RedditScorer {
 	slog.Warn("Using deprecated NewWithClient() constructor")
 	return nil
 }
 
 // NewWithClientAndOptions creates a new scorer with options (DEPRECATED)
-func NewWithClientAndOptions(client OpenAIClient, prompt string, maxConcurrent int) Scorer {
+func NewWithClientAndOptions(client OpenAIClient, prompt string, maxConcurrent int) RedditScorer {
 	slog.Warn("Using deprecated NewWithClientAndOptions() constructor")
 	return nil
 }

@@ -23,8 +23,8 @@ type ScoredItem struct {
 	Reason string   // AI explanation for the score
 }
 
-// TextScorer provides methods to score generic text items
-type TextScorer interface {
+// Scorer provides methods to score generic text items
+type Scorer interface {
 	// ScoreTexts scores a slice of text items
 	ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
 	
@@ -153,8 +153,8 @@ func WithExtraContext(context map[string]interface{}) ScoringOption {
 // DEPRECATED: Legacy types for backward compatibility reference only
 // These will be removed in v1.0.0
 
-// Scorer provides methods to score Reddit posts using ChatGPT (DEPRECATED - use TextScorer)
-type Scorer interface {
+// RedditScorer provides methods to score Reddit posts using ChatGPT (DEPRECATED - use Scorer)
+type RedditScorer interface {
 	ScorePosts(ctx context.Context, posts []*RedditPost) ([]*ScoredPost, error)
 	ScorePostsWithOptions(ctx context.Context, posts []*RedditPost, opts ...ScoringOption) ([]*ScoredPost, error)
 	ScorePostsWithContext(ctx context.Context, contexts []ScoringContext, opts ...ScoringOption) ([]*ScoredPost, error)

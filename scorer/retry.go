@@ -178,14 +178,14 @@ func IsRetryableError(err error) bool {
 	return true
 }
 
-// retryScorer wraps a TextScorer with retry functionality
+// retryScorer wraps a Scorer with retry functionality
 type retryScorer struct {
-	scorer TextScorer
+	scorer Scorer
 	config *RetryConfig
 }
 
-// NewRetryScorer creates a new retry wrapper for a TextScorer
-func NewRetryScorer(scorer TextScorer, config *RetryConfig) TextScorer {
+// NewRetryScorer creates a new retry wrapper for a Scorer
+func NewRetryScorer(scorer Scorer, config *RetryConfig) Scorer {
 	if config == nil {
 		config = &RetryConfig{
 			MaxAttempts:  3,
@@ -201,21 +201,21 @@ func NewRetryScorer(scorer TextScorer, config *RetryConfig) TextScorer {
 	}
 }
 
-// ScoreTexts implements TextScorer interface with retry logic
+// ScoreTexts implements Scorer interface with retry logic
 func (s *retryScorer) ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
 	return s.retryOperation(ctx, func() ([]ScoredItem, error) {
 		return s.scorer.ScoreTexts(ctx, items, opts...)
 	})
 }
 
-// ScoreTextsWithOptions implements TextScorer interface with retry logic
+// ScoreTextsWithOptions implements Scorer interface with retry logic
 func (s *retryScorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
 	return s.retryOperation(ctx, func() ([]ScoredItem, error) {
 		return s.scorer.ScoreTextsWithOptions(ctx, items, opts...)
 	})
 }
 
-// GetHealth implements TextScorer interface
+// GetHealth implements Scorer interface
 func (s *retryScorer) GetHealth(ctx context.Context) HealthStatus {
 	// Health checks shouldn't be retried
 	return s.scorer.GetHealth(ctx)
@@ -282,7 +282,7 @@ func (s *retryScorer) retryOperation(ctx context.Context, operation func() ([]Sc
 }
 
 // CombineWithCircuitBreaker creates a scorer with both retry and circuit breaker
-func CombineWithCircuitBreaker(scorer TextScorer, retryConfig *RetryConfig, cbConfig *CircuitBreakerConfig) TextScorer {
+func CombineWithCircuitBreaker(scorer Scorer, retryConfig *RetryConfig, cbConfig *CircuitBreakerConfig) Scorer {
 	// First wrap with retry (inner layer)
 	withRetry := NewRetryScorer(scorer, retryConfig)
 	

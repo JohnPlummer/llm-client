@@ -12,26 +12,26 @@ import (
 
 // IntegratedScorer combines all resilience patterns and features
 type IntegratedScorer struct {
-	baseScorer TextScorer
+	baseScorer Scorer
 	metrics    *MetricsRecorder
 	config     Config
 }
 
 // NewIntegratedScorer creates a fully integrated scorer with all features
-func NewIntegratedScorer(cfg Config) (TextScorer, error) {
+func NewIntegratedScorer(cfg Config) (Scorer, error) {
 	// Validate configuration
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
 
 	// Create base scorer
-	baseScorer, err := NewTextScorer(cfg)
+	baseScorer, err := NewScorer(cfg)
 	if err != nil {
 		return nil, err
 	}
 
 	// Apply resilience patterns based on configuration
-	var scorer TextScorer = baseScorer
+	var scorer Scorer = baseScorer
 
 	// Layer 1: Add retry logic (innermost)
 	if cfg.EnableRetry {
@@ -146,13 +146,13 @@ func (s *IntegratedScorer) GetHealth(ctx context.Context) HealthStatus {
 }
 
 // BuildProductionScorer creates a production-ready scorer with all features
-func BuildProductionScorer(apiKey string) (TextScorer, error) {
+func BuildProductionScorer(apiKey string) (Scorer, error) {
 	cfg := NewProductionConfig(apiKey)
 	return NewIntegratedScorer(cfg)
 }
 
 // BuildCustomScorer creates a scorer with custom configuration
-func BuildCustomScorer(cfg Config) (TextScorer, error) {
+func BuildCustomScorer(cfg Config) (Scorer, error) {
 	return NewIntegratedScorer(cfg)
 }
 
@@ -210,7 +210,7 @@ func classifyError(err error) string {
 }
 
 // WithMetrics wraps any TextScorer with metrics recording
-func WithMetrics(scorer TextScorer, metrics *MetricsRecorder) TextScorer {
+func WithMetrics(scorer Scorer, metrics *MetricsRecorder) Scorer {
 	return &metricsScorer{
 		scorer:  scorer,
 		metrics: metrics,
@@ -218,7 +218,7 @@ func WithMetrics(scorer TextScorer, metrics *MetricsRecorder) TextScorer {
 }
 
 type metricsScorer struct {
-	scorer  TextScorer
+	scorer  Scorer
 	metrics *MetricsRecorder
 }
 

@@ -177,23 +177,23 @@ func ShouldTripCircuit(err error) bool {
 	return true
 }
 
-// WrapWithCircuitBreaker wraps an existing TextScorer with circuit breaker functionality
-func WrapWithCircuitBreaker(scorer TextScorer, config *CircuitBreakerConfig) TextScorer {
+// WrapWithCircuitBreaker wraps an existing Scorer with circuit breaker functionality
+func WrapWithCircuitBreaker(scorer Scorer, config *CircuitBreakerConfig) Scorer {
 	// This would require extracting the client from the scorer
 	// For now, this is a placeholder for future enhancement
-	slog.Info("Circuit breaker wrapper for TextScorer not yet implemented")
+	slog.Info("Circuit breaker wrapper for Scorer not yet implemented")
 	return scorer
 }
 
-// circuitBreakerScorer wraps a TextScorer with circuit breaker functionality
+// circuitBreakerScorer wraps a Scorer with circuit breaker functionality
 type circuitBreakerScorer struct {
-	scorer TextScorer
+	scorer Scorer
 	cb     *gobreaker.CircuitBreaker[[]ScoredItem]
 	config *CircuitBreakerConfig
 }
 
-// NewCircuitBreakerScorer creates a new circuit breaker wrapper for a TextScorer
-func NewCircuitBreakerScorer(scorer TextScorer, config *CircuitBreakerConfig) TextScorer {
+// NewCircuitBreakerScorer creates a new circuit breaker wrapper for a Scorer
+func NewCircuitBreakerScorer(scorer Scorer, config *CircuitBreakerConfig) Scorer {
 	if config == nil {
 		config = &CircuitBreakerConfig{
 			MaxRequests: 10,
@@ -240,21 +240,21 @@ func NewCircuitBreakerScorer(scorer TextScorer, config *CircuitBreakerConfig) Te
 	}
 }
 
-// ScoreTexts implements TextScorer interface with circuit breaker
+// ScoreTexts implements Scorer interface with circuit breaker
 func (s *circuitBreakerScorer) ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
 	return s.cb.Execute(func() ([]ScoredItem, error) {
 		return s.scorer.ScoreTexts(ctx, items, opts...)
 	})
 }
 
-// ScoreTextsWithOptions implements TextScorer interface with circuit breaker
+// ScoreTextsWithOptions implements Scorer interface with circuit breaker
 func (s *circuitBreakerScorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
 	return s.cb.Execute(func() ([]ScoredItem, error) {
 		return s.scorer.ScoreTextsWithOptions(ctx, items, opts...)
 	})
 }
 
-// GetHealth implements TextScorer interface
+// GetHealth implements Scorer interface
 func (s *circuitBreakerScorer) GetHealth(ctx context.Context) HealthStatus {
 	state := s.cb.State()
 	counts := s.cb.Counts()

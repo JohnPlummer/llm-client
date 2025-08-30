@@ -218,7 +218,7 @@ var _ = Describe("Integration", func() {
 		})
 
 		It("should wrap any scorer with metrics", func() {
-			baseScorer, err := scorer.NewTextScorer(cfg)
+			baseScorer, err := scorer.NewScorer(cfg)
 			Expect(err).ToNot(HaveOccurred())
 
 			metrics := scorer.NewMetricsRecorder(true)

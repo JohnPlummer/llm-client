@@ -107,14 +107,14 @@ Text to score:
 		}
 	}
 
-	// Example 4: Start metrics server
-	fmt.Println("\n4. Starting Metrics Server")
-	go startMetricsServer()
-	fmt.Println("  Prometheus metrics available at http://localhost:8080/metrics")
-	fmt.Println("  Health check available at http://localhost:8080/health")
+	// Example 4: Start metrics server (optional)
+	fmt.Println("\n4. Metrics Server (Optional)")
+	fmt.Println("  To start a metrics server, uncomment the following lines:")
+	fmt.Println("  // go startMetricsServer()")
+	fmt.Println("  // fmt.Println(\"Prometheus metrics at http://localhost:8080/metrics\")")
+	fmt.Println("  // select {} // Keep running to serve metrics")
 	
-	fmt.Println("\nPress Ctrl+C to exit...")
-	select {} // Keep running to serve metrics
+	fmt.Println("\nExample completed successfully!")
 }
 
 func setupLogger() {

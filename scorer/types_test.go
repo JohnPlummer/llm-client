@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"github.com/JohnPlummer/post-scorer/scorer"
+	"github.com/JohnPlummer/llm-client/scorer"
 	"github.com/sashabaranov/go-openai"
 )
 

@@ -1,6 +1,6 @@
 # Migration Guide: v0.9.x to v0.10.0
 
-This guide helps you migrate from post-scorer v0.9.x to v0.10.0, which introduces resilience patterns and generic text scoring support.
+This guide helps you migrate from llm-client v0.9.x to v0.10.0, which introduces resilience patterns and generic text scoring support.
 
 ## Breaking Changes
 
@@ -111,7 +111,7 @@ if health.Status != scorer.HealthStatusHealthy {
 ### Step 1: Update Import
 
 ```bash
-go get github.com/JohnPlummer/post-scorer@v0.10.0
+go get github.com/JohnPlummer/llm-client@v0.10.0
 ```
 
 ### Step 2: Choose Migration Path
@@ -180,7 +180,7 @@ package main
 
 import (
     "context"
-    "github.com/JohnPlummer/post-scorer/scorer"
+    "github.com/JohnPlummer/llm-client/scorer"
     "github.com/JohnPlummer/reddit-client/reddit"
 )
 
@@ -216,7 +216,7 @@ package main
 import (
     "context"
     "net/http"
-    "github.com/JohnPlummer/post-scorer/scorer"
+    "github.com/JohnPlummer/llm-client/scorer"
 )
 
 func main() {
@@ -263,7 +263,7 @@ func main() {
 If you encounter issues with v0.10.0, you can safely rollback:
 
 ```bash
-go get github.com/JohnPlummer/post-scorer@v0.9.1
+go get github.com/JohnPlummer/llm-client@v0.9.1
 ```
 
 The v0.9.x API remains fully supported in v0.10.0, so gradual migration is possible.
@@ -271,6 +271,6 @@ The v0.9.x API remains fully supported in v0.10.0, so gradual migration is possi
 ## Support
 
 For issues or questions about migration:
-- Open an issue: https://github.com/JohnPlummer/post-scorer/issues
+- Open an issue: https://github.com/JohnPlummer/llm-client/issues
 - Check examples: `examples/` directory
 - Review tests: `scorer/*_test.go` for usage patterns

@@ -2,18 +2,18 @@
 
 ## Purpose
 
-Post Scorer is a Go library that leverages OpenAI's GPT API to intelligently score Reddit posts based on customizable criteria. The library is designed to help developers automatically evaluate and rank social media content for relevance, quality, or other specified metrics.
+LLM Client is a Go library that leverages OpenAI's GPT API to intelligently score text content based on customizable criteria. The library is designed to help developers automatically evaluate and rank any text content for relevance, quality, or other specified metrics.
 
 ## Core Functionality
 
-The scorer evaluates Reddit posts and returns structured results containing:
-- The original post data
+The scorer evaluates text items and returns structured results containing:
+- The original text data
 - A relevance score (0-100 scale)
 - A detailed reason explaining the score
 
 ## Architecture
 
-This is a Go library built around the `scorer` package, which provides a clean interface for batch processing Reddit posts through OpenAI's API.
+This is a Go library built around the `scorer` package, which provides a clean interface for batch processing text content through OpenAI's API.
 
 ### Core Components
 
@@ -24,7 +24,7 @@ This is a Go library built around the `scorer` package, which provides a clean i
 
 ### Key Features
 
-- **Batch Processing**: Efficiently processes up to 10 Reddit posts per API call
+- **Batch Processing**: Efficiently processes up to 10 text items per API call
 - **JSON Schema Validation**: Ensures OpenAI responses conform to expected structure
 - **Graceful Error Handling**: Assigns default scores (0) for missing or invalid responses
 - **Embedded Prompt System**: Includes default scoring criteria with location-based recommendations focus
@@ -42,7 +42,7 @@ This is a Go library built around the `scorer` package, which provides a clean i
 ## Project Structure
 
 ```
-post-scorer/
+llm-client/
 ├── scorer/               # Main library package
 │   ├── scorer.go        # Core implementation
 │   ├── types.go         # Interface and type definitions

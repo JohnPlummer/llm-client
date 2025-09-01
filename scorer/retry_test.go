@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/sashabaranov/go-openai"
 
-	"github.com/JohnPlummer/post-scorer/scorer"
+	"github.com/JohnPlummer/llm-client/scorer"
 )
 
 var _ = Describe("Retry", func() {

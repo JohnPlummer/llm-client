@@ -1,10 +1,10 @@
-# Post Scorer
+# LLM Client
 
 A production-ready Go library for scoring text content using OpenAI's GPT models, with built-in resilience patterns, metrics, and generic text support.
 
 ## Overview
 
-Post-Scorer provides intelligent text scoring with enterprise-grade features:
+LLM-Client provides intelligent text scoring with enterprise-grade features:
 
 - **Generic Text Scoring**: Score any text content, not just Reddit posts
 - **Resilience Patterns**: Circuit breaker and retry with backoff
@@ -15,7 +15,7 @@ Post-Scorer provides intelligent text scoring with enterprise-grade features:
 ## Installation
 
 ```bash
-go get github.com/JohnPlummer/post-scorer@v0.10.0
+go get github.com/JohnPlummer/llm-client@v0.10.0
 ```
 
 ## Quick Start
@@ -27,7 +27,7 @@ package main
 
 import (
     "context"
-    "github.com/JohnPlummer/post-scorer/scorer"
+    "github.com/JohnPlummer/llm-client/scorer"
 )
 
 func main() {

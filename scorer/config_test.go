@@ -8,7 +8,7 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"github.com/sony/gobreaker/v2"
 
-	"github.com/JohnPlummer/post-scorer/scorer"
+	"github.com/JohnPlummer/llm-client/scorer"
 )
 
 var _ = Describe("Config", func() {

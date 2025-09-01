@@ -1,6 +1,6 @@
-# Post Scorer Improvement Plan
+# LLM Client Improvement Plan
 
-This document outlines a sequence of improvements for the post-scorer library. Each step should be implemented independently, tested, and committed before moving to the next.
+This document outlines a sequence of improvements for the llm-client library. Each step should be implemented independently, tested, and committed before moving to the next.
 
 ## Instructions
 

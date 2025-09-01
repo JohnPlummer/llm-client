@@ -1,4 +1,4 @@
-module github.com/JohnPlummer/post-scorer
+module github.com/JohnPlummer/llm-client
 
 go 1.23.1
 

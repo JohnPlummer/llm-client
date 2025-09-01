@@ -31,3 +31,4 @@ go.work
 
 # Local settings
 .claude/settings.local.json
+examples/basic/example

@@ -15,7 +15,7 @@ LLM-Client provides intelligent text scoring with enterprise-grade features:
 ## Installation
 
 ```bash
-go get github.com/JohnPlummer/llm-client@v0.10.0
+go get github.com/JohnPlummer/llm-client@v0.11.0
 ```
 
 ## Quick Start
@@ -50,27 +50,12 @@ func main() {
 
     // Use the results
     for _, result := range results {
-        fmt.Printf("Title: %s\nScore: %d\nReason: %s\n\n", 
-            result.Item.Title, 
-            result.Score, 
+        fmt.Printf("Title: %s\nScore: %d\nReason: %s\n\n",
+            result.Item.Title,
+            result.Score,
             result.Reason)
     }
 }
-```
-
-### Legacy Reddit Support
-
-For backward compatibility with Reddit posts:
-
-```go
-import "github.com/JohnPlummer/reddit-client/reddit"
-
-// Use legacy Reddit-specific interface
-posts := []*reddit.Post{
-    {ID: "post1", Title: "Best restaurants in town?"},
-}
-
-scoredPosts, err := s.ScorePosts(context.Background(), posts)
 ```
 
 ## Resilience Features
@@ -130,6 +115,7 @@ cfg := scorer.Config{
 ```
 
 Available retry strategies:
+
 - `RetryStrategyConstant`: Fixed delay between attempts
 - `RetryStrategyExponential`: Exponentially increasing delay
 - `RetryStrategyFibonacci`: Fibonacci sequence delays
@@ -256,7 +242,7 @@ See `examples/basic/custom_prompt.txt` for a complete example prompt.
 For comprehensive documentation, see the `docs/` directory:
 
 - **[Project Overview](docs/project-overview.md)** - Architecture, features, and use cases
-- **[Development Setup](docs/development-setup.md)** - Installation, dependencies, and coding standards  
+- **[Development Setup](docs/development-setup.md)** - Installation, dependencies, and coding standards
 - **[Package Usage](docs/package-usage.md)** - Complete API reference and examples
 - **[Key Components](docs/key-components.md)** - Core interfaces and implementation details
 - **[Deployment Guide](docs/deployment-guide.md)** - Production deployment and configuration

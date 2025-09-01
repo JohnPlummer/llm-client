@@ -9,11 +9,13 @@ The module has been renamed to better reflect its broader LLM capabilities beyon
 ### Import Path Change
 
 **Before (v0.10.0):**
+
 ```go
 import "github.com/JohnPlummer/post-scorer/scorer"
 ```
 
 **After (v0.11.0):**
+
 ```go
 import "github.com/JohnPlummer/llm-client/scorer"
 ```
@@ -89,11 +91,11 @@ func main() {
     if err != nil {
         panic(err)
     }
-    
+
     items := []scorer.TextItem{
         {ID: "1", Title: "Title", Body: "Content"},
     }
-    
+
     results, err := s.ScoreTexts(context.Background(), items)
     // ... rest of code
 }
@@ -114,11 +116,11 @@ func main() {
     if err != nil {
         panic(err)
     }
-    
+
     items := []scorer.TextItem{
         {ID: "1", Title: "Title", Body: "Content"},
     }
-    
+
     results, err := s.ScoreTexts(context.Background(), items)
     // ... rest of code remains exactly the same
 }
@@ -153,6 +155,7 @@ Note: The old module path will continue to work for existing versions due to Git
 ## Support
 
 For issues or questions about migration:
-- Open an issue: https://github.com/JohnPlummer/llm-client/issues
+
+- Open an issue: <https://github.com/JohnPlummer/llm-client/issues>
 - Check examples: `examples/` directory
 - Review the README for updated documentation

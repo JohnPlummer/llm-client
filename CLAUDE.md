@@ -4,7 +4,7 @@ This file provides comprehensive guidance to Claude Code (claude.ai/code) when w
 
 ## Repository Overview
 
-**Post-Scorer** is a production-ready Go library (v0.9.1) that scores Reddit posts using OpenAI's GPT API to determine their relevance for location-based recommendations and events. The library provides batch processing, concurrent execution, and flexible prompt customization.
+**LLM-Client** is a production-ready Go library (v0.11.0) that scores text content using OpenAI's GPT API to determine relevance for various use cases. The library provides batch processing, concurrent execution, and flexible prompt customization.
 
 ### Project Statistics
 - **Primary language**: Go 1.23.1+
@@ -12,10 +12,10 @@ This file provides comprehensive guidance to Claude Code (claude.ai/code) when w
 - **Active since**: February 9, 2025
 - **Test coverage**: 86.5%
 - **Total commits**: 52
-- **Latest version**: 0.9.1
+- **Latest version**: 0.11.0
 
 ### Core Value Proposition
-- Batch processing of Reddit posts (10 posts per API call for efficiency)
+- Batch processing of text items (10 items per API call for efficiency)
 - Concurrent processing with configurable parallelism
 - Interface-first design for testing and extensibility
 - Custom prompt templates with Go template support

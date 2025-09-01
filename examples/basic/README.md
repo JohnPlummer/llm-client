@@ -1,4 +1,4 @@
-# Post-Scorer Basic Example
+# LLM-Client Basic Example
 
 This example demonstrates the new v0.10.0 API features including resilience patterns and generic text scoring.
 

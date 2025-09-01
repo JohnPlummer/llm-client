@@ -29,7 +29,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("=== Post-Scorer v0.10.0 Example ===\n")
+	fmt.Println("=== LLM-Client v0.11.0 Example ===\n")
 
 	// Example 1: Production-ready scorer with all resilience features
 	fmt.Println("1. Production Configuration (with resilience patterns)")

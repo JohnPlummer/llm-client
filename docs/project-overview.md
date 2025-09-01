@@ -42,7 +42,7 @@ This is a Go library built around the `scorer` package, which provides a clean i
 ## Project Structure
 
 ```
-post-scorer/
+llm-client/
 ├── scorer/               # Main library package
 │   ├── scorer.go        # Core implementation
 │   ├── types.go         # Interface and type definitions

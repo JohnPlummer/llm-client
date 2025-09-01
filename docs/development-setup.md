@@ -11,14 +11,14 @@
 ### As a Library Dependency
 
 ```bash
-go get github.com/JohnPlummer/post-scorer
+go get github.com/JohnPlummer/llm-client
 ```
 
 ### For Development
 
 ```bash
-git clone https://github.com/JohnPlummer/post-scorer.git
-cd post-scorer
+git clone https://github.com/JohnPlummer/llm-client.git
+cd llm-client
 go mod tidy
 ```
 

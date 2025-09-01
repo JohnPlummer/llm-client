@@ -9,7 +9,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/JohnPlummer/post-scorer/scorer"
+	"github.com/JohnPlummer/llm-client/scorer"
 	"github.com/joho/godotenv"
 )
 

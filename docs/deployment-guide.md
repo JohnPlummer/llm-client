@@ -79,20 +79,20 @@ CMD ["./scorer-app"]
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: post-scorer-app
+  name: llm-client-app
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: post-scorer
+      app: llm-client
   template:
     metadata:
       labels:
-        app: post-scorer
+        app: llm-client
     spec:
       containers:
       - name: scorer
-        image: your-registry/post-scorer:v1.0.0
+        image: your-registry/llm-client:v1.0.0
         env:
         - name: OPENAI_API_KEY
           valueFrom:
@@ -399,5 +399,5 @@ curl -H "Authorization: Bearer $OPENAI_API_KEY" \
 kubectl exec -it pod-name -- ./scorer-app --health-check
 
 # Monitor resource usage
-kubectl top pods -l app=post-scorer
+kubectl top pods -l app=llm-client
 ```

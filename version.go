@@ -1,7 +1,7 @@
 package scorer
 
-// Version represents the current version of the post-scorer library
-const Version = "0.10.0"
+// Version represents the current version of the llm-client library
+const Version = "1.0.0"
 
 // VersionInfo provides version information for the library
 type VersionInfo struct {
@@ -13,6 +13,6 @@ type VersionInfo struct {
 func GetVersion() VersionInfo {
 	return VersionInfo{
 		Version: Version,
-		Name:    "post-scorer",
+		Name:    "llm-client",
 	}
 }

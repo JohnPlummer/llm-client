@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-This file provides comprehensive guidance to Claude Code (claude.ai/code) when working with the post-scorer Go library.
+This file provides comprehensive guidance to Claude Code (claude.ai/code) when working with the llm-client Go library.
 
 ## Repository Overview
 
@@ -31,14 +31,14 @@ This file provides comprehensive guidance to Claude Code (claude.ai/code) when w
 ### Initial Setup
 ```bash
 # Install the library
-go get github.com/JohnPlummer/post-scorer
+go get github.com/JohnPlummer/llm-client
 
 # Set environment variable
 export OPENAI_API_KEY="your-api-key"
 
 # For development, clone the repository
-git clone https://github.com/JohnPlummer/post-scorer.git
-cd post-scorer
+git clone https://github.com/JohnPlummer/llm-client.git
+cd llm-client
 
 # Install dependencies
 go mod download
@@ -49,7 +49,7 @@ make test
 
 ### Basic Usage
 ```go
-import "github.com/JohnPlummer/post-scorer/scorer"
+import "github.com/JohnPlummer/llm-client/scorer"
 
 // Create scorer with config
 cfg := scorer.Config{
@@ -169,7 +169,7 @@ scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
 ## Project Structure
 
 ```
-post-scorer/
+llm-client/
 ├── scorer/                      # Core library package
 │   ├── scorer.go                # Main implementation and constructors
 │   ├── batch.go                 # Batch processing logic
@@ -264,7 +264,7 @@ var promptsFS embed.FS
 
 ### Naming Conventions
 - **Files**: snake_case (`scorer_test.go`, `batch.go`)
-- **Directories**: lowercase or kebab-case (`scorer/`, `post-scorer/`)
+- **Directories**: lowercase or kebab-case (`scorer/`, `llm-client/`)
 - **Exported types/functions**: PascalCase (`ScorePosts`, `ScoredPost`)
 - **Private types/functions**: camelCase (`processBatch`, `scoreResponse`)
 - **Interfaces**: Descriptive nouns (`Scorer`, `OpenAIClient`)
@@ -447,7 +447,7 @@ While you can specify any OpenAI model, the default prompts are optimized for GP
 ### Import Path Changes
 The library moved from local development to published module. Ensure imports use:
 ```go
-import "github.com/JohnPlummer/post-scorer/scorer"
+import "github.com/JohnPlummer/llm-client/scorer"
 ```
 Not the old local path references.
 
@@ -482,7 +482,7 @@ go install github.com/onsi/ginkgo/v2/ginkgo@latest
 
 ### Migration Guide
 If upgrading from pre-v0.9.0:
-1. Update import paths to `github.com/JohnPlummer/post-scorer/scorer`
+1. Update import paths to `github.com/JohnPlummer/llm-client/scorer`
 2. Replace `Debug: true` with `LOG_LEVEL=debug` environment variable
 3. Update to Go 1.23.1+ for built-in `min` function support
 

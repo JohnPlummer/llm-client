@@ -3,7 +3,7 @@ module example
 go 1.23.1
 
 require (
-	github.com/JohnPlummer/post-scorer v0.0.0
+	github.com/JohnPlummer/llm-client v0.0.0
 	github.com/joho/godotenv v1.5.1
 )
 
@@ -24,6 +24,6 @@ require (
 )
 
 replace (
-	github.com/JohnPlummer/post-scorer => ../../
+	github.com/JohnPlummer/llm-client => ../../
 	github.com/JohnPlummer/reddit-client => ../../../reddit-client
 )

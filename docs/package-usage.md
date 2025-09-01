@@ -3,7 +3,7 @@
 ## Installation
 
 ```bash
-go get github.com/JohnPlummer/post-scorer@v0.9.0
+go get github.com/JohnPlummer/llm-client@v0.9.0
 ```
 
 ## Quick Start
@@ -16,7 +16,7 @@ package main
 import (
     "context"
     "fmt"
-    "github.com/JohnPlummer/post-scorer/scorer"
+    "github.com/JohnPlummer/llm-client/scorer"
     "github.com/JohnPlummer/reddit-client/reddit"
 )
 

@@ -1,7 +1,7 @@
 package scorer
 
 // Version represents the current version of the llm-client library
-const Version = "1.0.0"
+const Version = "0.11.0"
 
 // VersionInfo provides version information for the library
 type VersionInfo struct {

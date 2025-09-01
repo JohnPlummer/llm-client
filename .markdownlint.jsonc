@@ -1,0 +1,4 @@
+{
+  // MD013: Line length - disabled to allow longer lines in documentation
+  "MD013": false
+}

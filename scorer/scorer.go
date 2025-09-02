@@ -99,6 +99,12 @@ func (s *scorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, op
 		return []ScoredItem{}, nil
 	}
 	
+	// Determine max content length
+	maxContentLength := s.config.MaxContentLength
+	if maxContentLength == 0 {
+		maxContentLength = DefaultMaxContentLength
+	}
+	
 	// Validate items
 	for i, item := range items {
 		if item.ID == "" {
@@ -106,6 +112,17 @@ func (s *scorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, op
 		}
 		if item.Content == "" {
 			slog.Warn("Item has empty content", "item_id", item.ID, "index", i)
+		}
+		
+		// Validate content length
+		contentLength := len(item.Content)
+		if contentLength > maxContentLength {
+			return nil, fmt.Errorf("item %s at index %d: %w (length: %d, max: %d)", 
+				item.ID, i, ErrContentTooLong, contentLength, maxContentLength)
+		}
+		if contentLength < MinContentLength && contentLength > 0 {
+			return nil, fmt.Errorf("item %s at index %d: %w (length: %d, min: %d)", 
+				item.ID, i, ErrContentTooShort, contentLength, MinContentLength)
 		}
 	}
 

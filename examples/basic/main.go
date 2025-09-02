@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Load test data
-	items, err := loadTextItems("example_posts.csv")
+	items, err := loadTextItems("example_items.csv")
 	if err != nil {
 		slog.Error("Failed to load test data", "error", err)
 		os.Exit(1)

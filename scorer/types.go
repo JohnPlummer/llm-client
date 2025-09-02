@@ -105,6 +105,7 @@ var (
 	ErrEmptyInput        = errors.New("input items cannot be empty")
 	ErrContentTooLong    = errors.New("content exceeds maximum length")
 	ErrContentTooShort   = errors.New("content is too short")
+	ErrContentWhitespace = errors.New("content contains only whitespace")
 )
 
 // Internal response types for JSON parsing

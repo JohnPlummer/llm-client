@@ -14,7 +14,7 @@ Based on the recent git commits and codebase state:
 #### Bug Fixes and Reliability
 - **fix: improve scoring reliability by handling missing scores gracefully** (37c56be)
   - Enhanced error handling for incomplete OpenAI responses
-  - Added automatic fallback to score 0 for missing post scores
+  - Added automatic fallback to score 0 for missing text item scores
   - Improved logging for missing score scenarios
   - Strengthened graceful degradation capabilities
 
@@ -71,7 +71,7 @@ Based on the recent git commits and codebase state:
 ## Current Capabilities
 
 ### Core Functionality
-- ✅ Batch processing of Reddit posts (max 10 per batch)
+- ✅ Batch processing of text items (max 10 per batch)
 - ✅ OpenAI GPT-4o-mini integration with JSON schema validation
 - ✅ Graceful handling of missing or invalid scores
 - ✅ Embedded prompt system with location-based scoring
@@ -96,7 +96,7 @@ Based on the recent git commits and codebase state:
 ## Known Limitations
 
 ### Current Constraints
-- **Batch Size**: Fixed at 10 posts per API call
+- **Batch Size**: Fixed at 10 text items per API call
 - **Sequential Processing**: Batches processed one at a time
 - **Rate Limiting**: `MaxConcurrent` not yet implemented
 - **Model Selection**: Hard-coded to GPT-4o-mini
@@ -122,7 +122,7 @@ Based on the recent git commits and codebase state:
 ## Performance Characteristics
 
 ### Current Performance
-- **Batch Size**: 10 posts per API call (optimal for most use cases)
+- **Batch Size**: 10 text items per API call (optimal for most use cases)
 - **Model**: GPT-4o-mini (cost-optimized choice)
 - **Error Handling**: Graceful degradation with minimal performance impact
 - **Memory Usage**: Efficient with batch processing approach
@@ -141,7 +141,7 @@ Based on the recent git commits and codebase state:
 - `github.com/onsi/gomega v1.36.3` - ✅ Current
 
 ### Local Dependencies
-- `github.com/JohnPlummer/reddit-client` - Local module replacement
+- Generic text processing with built-in `TextItem` and `ScoredItem` types
 
 ### Development Dependencies
 - All testing and build dependencies are current
@@ -171,14 +171,14 @@ Based on the recent git commits and codebase state:
 2. **Documentation Fixes** - Corrected type errors in README examples
 3. **Config Validation** - Added validation for prompt placeholders and MaxConcurrent values
 4. **Error Context Improvements** - Enhanced error messages throughout the codebase
-5. **Input Validation** - Added checks for nil posts and empty IDs
+5. **Input Validation** - Added checks for empty text items and empty IDs
 6. **Helper Function Extraction** - Improved code organization and reusability
 7. **Duplicate Code Removal** - Eliminated custom min function in favor of Go 1.21+ built-in
 8. **Test Coverage Expansion** - Added 9 new test cases covering edge cases and validations
 9. **Custom Prompt Example** - Created comprehensive example with proper formatting
 10. **MaxConcurrent Implementation** - Full concurrent processing with semaphore pattern
 11. **Prompt Management** - Unified prompt system using embedded file system
-12. **Dependency Update** - Migrated to published reddit-client v0.9.0
+12. **Generic Text Support** - Migrated from Reddit-specific to generic text scoring API
 
 ### Test Coverage Achievements
 - **18 comprehensive test cases** covering all major scenarios

@@ -17,44 +17,44 @@ import (
     "context"
     "fmt"
     "github.com/JohnPlummer/llm-client/scorer"
-    "github.com/JohnPlummer/reddit-client/reddit"
 )
 
 func main() {
     // Initialize the scorer
-    s, err := scorer.New(scorer.Config{
+    s, err := scorer.NewScorer(scorer.Config{
         OpenAIKey: "your-openai-api-key",
     })
     if err != nil {
         panic(err)
     }
 
-    // Prepare posts to score
-    posts := []*reddit.Post{
+    // Prepare text items to score
+    items := []scorer.TextItem{
         {
-            ID:       "post1",
-            Title:    "Best restaurants in downtown?",
-            SelfText: "Looking for good dinner spots",
+            ID:      "item1",
+            Content: "Best restaurants in downtown? Looking for good dinner spots",
+            Metadata: map[string]interface{}{"title": "Best restaurants in downtown?"},
         },
         {
-            ID:       "post2", 
-            Title:    "Weekend events happening?",
-            SelfText: "What's going on this weekend?",
+            ID:      "item2",
+            Content: "Weekend events happening? What's going on this weekend?",
+            Metadata: map[string]interface{}{"title": "Weekend events happening?"},
         },
     }
 
-    // Score the posts
-    scoredPosts, err := s.ScorePosts(context.Background(), posts)
+    // Score the text items
+    results, err := s.ScoreTexts(context.Background(), items)
     if err != nil {
         panic(err)
     }
 
     // Use the results
-    for _, post := range scoredPosts {
+    for _, result := range results {
+        title := result.Item.Metadata["title"]
         fmt.Printf("Title: %s\nScore: %d\nReason: %s\n\n", 
-            post.Post.Title, 
-            post.Score, 
-            post.Reason)
+            title, 
+            result.Score, 
+            result.Reason)
     }
 }
 ```
@@ -116,50 +116,52 @@ logger := slog.New(slog.NewTextHandler(os.Stdout, opts))
 slog.SetDefault(logger)
 
 // Scorer will use the configured logger
-s, err := scorer.New(config)
+s, err := scorer.NewScorer(config)
 ```
 
 ## Input Data Structure
 
-### Reddit Post Structure
+### TextItem Structure
 
-The library expects posts conforming to the `reddit.Post` type:
+The library expects text items conforming to the `TextItem` type:
 
 ```go
-type Post struct {
-    ID       string     // Required: Unique identifier
-    Title    string     // Required: Post title
-    SelfText string     // Optional: Post body text
-    Comments []Comment  // Optional: Associated comments
-    // ... other fields
+type TextItem struct {
+    ID       string                 // Required: Unique identifier
+    Content  string                 // Required: Text content to score
+    Metadata map[string]interface{} // Optional: Additional context
 }
 ```
 
-### Comments Integration
+### Metadata Integration
 
-Comments provide additional context for scoring:
+Metadata provides additional context for scoring:
 
 ```go
-post := &reddit.Post{
-    ID:       "post1",
-    Title:    "Restaurant recommendations?",
-    SelfText: "Looking for good food",
-    Comments: []reddit.Comment{
-        {Body: "Try Luigi's on Main Street!"},
-        {Body: "The corner café has great coffee"},
+item := scorer.TextItem{
+    ID:      "item1",
+    Content: "Restaurant recommendations? Looking for good food",
+    Metadata: map[string]interface{}{
+        "title": "Restaurant recommendations?",
+        "comments": []string{
+            "Try Luigi's on Main Street!",
+            "The corner café has great coffee",
+        },
+        },
+        "location": "downtown",
     },
 }
 ```
 
 ## Output Structure
 
-### ScoredPost Type
+### ScoredItem Type
 
 ```go
-type ScoredPost struct {
-    Post   *reddit.Post // Original post data
-    Score  int          // AI-generated score (0-100)
-    Reason string       // Explanation for the score
+type ScoredItem struct {
+    Item   TextItem // Original text item data
+    Score  int      // AI-generated score (0-100)
+    Reason string   // Explanation for the score
 }
 ```
 
@@ -177,10 +179,10 @@ type ScoredPost struct {
 
 Custom prompts **MUST** include:
 
-1. **Post placeholder**: Include `%s` where posts will be injected
+1. **Text placeholder**: Include `%s` where text items will be injected
 2. **JSON output requirement**: Specify exact JSON structure needed
 3. **Scoring criteria**: Define clear 0-100 scoring guidelines
-4. **Complete coverage**: Require scoring of ALL input posts
+4. **Complete coverage**: Require scoring of ALL input text items
 
 ### JSON Response Format
 
@@ -191,8 +193,7 @@ Your prompt must instruct the AI to return JSON in this exact structure:
   "version": "1.0",
   "scores": [
     {
-      "post_id": "<post_id>",
-      "title": "<post_title>",
+      "item_id": "<item_id>",
       "score": <0-100>,
       "reason": "<explanation>"
     }
@@ -203,7 +204,7 @@ Your prompt must instruct the AI to return JSON in this exact structure:
 ### Example Custom Prompt
 
 ```text
-Score Reddit posts for technology events and meetups (0-100 scale).
+Score text items for technology events and meetups (0-100 scale).
 
 Categories to consider:
 - Tech conferences and workshops
@@ -218,18 +219,18 @@ Scoring guidelines:
 1-39: Minimal tech relevance
 0: No tech event content
 
-CRITICAL: Score every post, return only valid JSON.
+CRITICAL: Score every text item, return only valid JSON.
 
-Posts to score:
+Text items to score:
 %s
 ```
 
 ### Validation Requirements
 
 - **No markdown formatting** in JSON output
-- **All fields required**: post_id, title, score, reason
+- **All fields required**: item_id, score, reason
 - **Score range**: Must be 0-100 integer
-- **Complete coverage**: Every input post must receive a score
+- **Complete coverage**: Every input text item must receive a score
 - **Valid JSON**: Must parse without errors
 
 ## Error Handling
@@ -238,13 +239,13 @@ Posts to score:
 
 ```go
 // Missing API key
-s, err := scorer.New(scorer.Config{})
+s, err := scorer.NewScorer(scorer.Config{})
 if err == scorer.ErrMissingAPIKey {
     // Handle missing API key
 }
 
 // API failures
-scoredPosts, err := s.ScorePosts(ctx, posts)
+results, err := s.ScoreTexts(ctx, items)
 if err != nil {
     // Check if it's a context cancellation
     if errors.Is(err, context.Canceled) {
@@ -267,7 +268,7 @@ The library provides automatic fallbacks:
 
 ### Batch Processing
 
-- **Automatic batching**: Posts are processed in batches of 10
+- **Automatic batching**: Text items are processed in batches of 10
 - **Sequential processing**: Batches are processed one at a time
 - **Error isolation**: Batch failures don't affect other batches
 
@@ -292,16 +293,16 @@ config := scorer.Config{
 ### Content Curation
 
 ```go
-func filterRelevantPosts(posts []*reddit.Post, minScore int) []*reddit.Post {
-    scored, err := scorer.ScorePosts(ctx, posts)
+func filterRelevantItems(items []scorer.TextItem, minScore int) []scorer.TextItem {
+    scored, err := scorer.ScoreTexts(ctx, items)
     if err != nil {
         return nil
     }
     
-    var filtered []*reddit.Post
-    for _, sp := range scored {
-        if sp.Score >= minScore {
-            filtered = append(filtered, sp.Post)
+    var filtered []scorer.TextItem
+    for _, si := range scored {
+        if si.Score >= minScore {
+            filtered = append(filtered, si.Item)
         }
     }
     return filtered
@@ -311,15 +312,15 @@ func filterRelevantPosts(posts []*reddit.Post, minScore int) []*reddit.Post {
 ### Analytics Dashboard
 
 ```go
-func generateScoreStats(scored []*ScoredPost) map[string]int {
+func generateScoreStats(scored []scorer.ScoredItem) map[string]int {
     stats := make(map[string]int)
-    for _, sp := range scored {
+    for _, si := range scored {
         switch {
-        case sp.Score >= 90:
+        case si.Score >= 90:
             stats["high"]++
-        case sp.Score >= 70:
+        case si.Score >= 70:
             stats["medium"]++
-        case sp.Score >= 40:
+        case si.Score >= 40:
             stats["low"]++
         default:
             stats["irrelevant"]++
@@ -332,8 +333,8 @@ func generateScoreStats(scored []*ScoredPost) map[string]int {
 ### CSV Integration
 
 See `examples/basic/main.go` for a complete example of:
-- Loading posts from CSV files
-- Associating comments with posts
+- Loading text items from CSV files
+- Including metadata and context in text items
 - Environment variable configuration
 - Structured logging integration
 - Error handling and reporting

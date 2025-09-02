@@ -57,10 +57,10 @@ cfg := scorer.Config{
     Model:         openai.GPT4oMini, // optional, defaults to GPT-4o-mini
     MaxConcurrent: 5,                 // optional, defaults to 1
 }
-s, err := scorer.New(cfg)
+s, err := scorer.NewScorer(cfg)
 
-// Score posts
-scoredPosts, err := s.ScorePosts(ctx, posts)
+// Score text items
+results, err := s.ScoreTexts(ctx, items)
 ```
 
 ## Essential Commands
@@ -123,9 +123,14 @@ Infrastructure Layer (OpenAI API client)
 The core abstraction that enables dependency injection and testing:
 ```go
 type Scorer interface {
-    ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error)
-    ScorePostsWithOptions(ctx context.Context, posts []*reddit.Post, opts ...ScoringOption) ([]*ScoredPost, error)
-    ScorePostsWithContext(ctx context.Context, contexts []ScoringContext, opts ...ScoringOption) ([]*ScoredPost, error)
+    // ScoreTexts scores a slice of text items
+    ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
+    
+    // ScoreTextsWithOptions scores text items with runtime options
+    ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
+    
+    // GetHealth returns the current health status of the scorer
+    GetHealth(ctx context.Context) HealthStatus
 }
 ```
 - **Location**: `scorer/types.go`
@@ -133,7 +138,7 @@ type Scorer interface {
 - **Testing**: Mock implementation in `scorer/scorer_test.go`
 
 ### 2. **Batch Processing Architecture**
-Fixed batch size of 10 posts per OpenAI API call for efficiency:
+Fixed batch size of 10 text items per OpenAI API call for efficiency:
 ```go
 const maxBatchSize = 10 // Hard limit for optimal API performance
 ```
@@ -144,22 +149,22 @@ const maxBatchSize = 10 // Hard limit for optimal API performance
 ### 3. **Functional Options Pattern**
 Per-request customization without breaking changes:
 ```go
-scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
+results, err := scorer.ScoreTextsWithOptions(ctx, items,
     scorer.WithModel(openai.GPT4),
-    scorer.WithPromptTemplate("Custom: {{.PostTitle}}"),
-    scorer.WithExtraContext(map[string]string{"location": "NYC"}),
+    scorer.WithPromptTemplate("Custom: {{.ItemContent}}"),
+    scorer.WithExtraContext(map[string]interface{}{"location": "NYC"}),
 )
 ```
 - **Location**: `scorer/types.go`
 - **Added**: v0.9.1 (July 29, 2025)
 
 ### Data Flow
-1. **Input Validation** → Check for nil posts, empty IDs
-2. **Batching** → Split into 10-post batches
+1. **Input Validation** → Check for empty text items, empty IDs
+2. **Batching** → Split into 10-item batches
 3. **Prompt Generation** → Apply template with context
 4. **API Call** → Send to OpenAI with JSON schema
 5. **Response Parsing** → Validate scores (0-100 range)
-6. **Result Assembly** → Map scores back to original posts
+6. **Result Assembly** → Map scores back to original text items
 
 ### Concurrency Model
 - **Sequential Mode** (`MaxConcurrent <= 1`): Default for backward compatibility
@@ -183,8 +188,7 @@ llm-client/
 │   └── basic/                   # Self-contained example module
 │       ├── main.go              # Example implementation
 │       ├── custom_prompt.txt   # Custom prompt template
-│       ├── example_posts.csv   # Sample post data
-│       ├── example_comments.csv # Sample comment data
+│       ├── example_items.csv   # Sample text item data
 │       ├── go.mod               # Separate module definition
 │       └── go.sum               # Dependency checksums
 ├── docs/                        # Comprehensive documentation
@@ -224,14 +228,14 @@ func NewWithClient(client OpenAIClient) Scorer
 fmt.Errorf("processing batch %d of %d: %w", batchNum, totalBatches, err)
 
 // Validate at boundaries
-if post.ID == "" {
-    return nil, fmt.Errorf("post at index %d has empty ID", i)
+if item.ID == "" {
+    return nil, fmt.Errorf("text item at index %d has empty ID", i)
 }
 ```
 
 **Graceful degradation:**
 - Missing scores default to 0 with warning logs
-- Continue processing other posts on individual failures
+- Continue processing other text items on individual failures
 - Log at appropriate levels (Debug, Info, Warn, Error)
 
 ### Adding New Features
@@ -246,7 +250,7 @@ if post.ID == "" {
 ```go
 // Production: use real client
 cfg := scorer.Config{OpenAIKey: apiKey}
-s, _ := scorer.New(cfg)
+s, _ := scorer.NewScorer(cfg)
 
 // Testing: use mock client
 mockClient := &mockOpenAIClient{response: testResponse}
@@ -265,7 +269,7 @@ var promptsFS embed.FS
 ### Naming Conventions
 - **Files**: snake_case (`scorer_test.go`, `batch.go`)
 - **Directories**: lowercase or kebab-case (`scorer/`, `llm-client/`)
-- **Exported types/functions**: PascalCase (`ScorePosts`, `ScoredPost`)
+- **Exported types/functions**: PascalCase (`ScoreTexts`, `ScoredItem`)
 - **Private types/functions**: camelCase (`processBatch`, `scoreResponse`)
 - **Interfaces**: Descriptive nouns (`Scorer`, `OpenAIClient`)
 - **Error variables**: `Err` prefix (`ErrMissingAPIKey`)
@@ -281,7 +285,7 @@ import (
     
     // Third-party packages
     "github.com/sashabaranov/go-openai"
-    "github.com/JohnPlummer/reddit-client/reddit"
+    // No external text item dependencies required
     
     // Internal packages (if any)
 )
@@ -296,9 +300,9 @@ import (
 
 ### Documentation Standards
 ```go
-// ScorePosts scores a slice of Reddit posts and returns scored posts with explanations.
-// It processes posts in batches of 10 for API efficiency.
-func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error) {
+// ScoreTexts scores a slice of text items and returns scored items with explanations.
+// It processes text items in batches of 10 for API efficiency.
+func (s *scorer) ScoreTexts(ctx context.Context, items []TextItem) ([]ScoredItem, error) {
 ```
 
 ## Testing Approach
@@ -307,9 +311,9 @@ func (s *scorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*Score
 **Ginkgo BDD with Gomega matchers** - Structured, readable tests:
 ```go
 var _ = Describe("Scorer", func() {
-    Context("when scoring posts", func() {
+    Context("when scoring text items", func() {
         It("should handle empty input gracefully", func() {
-            result, err := scorer.ScorePosts(ctx, []*reddit.Post{})
+            result, err := scorer.ScoreTexts(ctx, []TextItem{})
             Expect(err).ToNot(HaveOccurred())
             Expect(result).To(BeEmpty())
         })
@@ -361,20 +365,21 @@ type Config struct {
 }
 ```
 
-#### ScoredPost
+#### ScoredItem
 ```go
-type ScoredPost struct {
-    Post   *reddit.Post // Original Reddit post
-    Score  int          // Score 0-100
-    Reason string       // AI explanation for score
+type ScoredItem struct {
+    Item   TextItem // Original text item
+    Score  int      // Score 0-100
+    Reason string   // AI explanation for score
 }
 ```
 
-#### ScoringContext
+#### TextItem
 ```go
-type ScoringContext struct {
-    Post      *reddit.Post       // Reddit post to score
-    ExtraData map[string]string  // Additional context (e.g., comments)
+type TextItem struct {
+    ID       string                 // Unique identifier for the text item
+    Content  string                 // The text content to be scored
+    Metadata map[string]interface{} // Optional metadata for context
 }
 ```
 
@@ -395,13 +400,10 @@ func NewWithClientAndOptions(client OpenAIClient, opts ...func(*scorer)) Scorer
 
 ```go
 // Basic scoring
-ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error)
+ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
 
 // Scoring with runtime options
-ScorePostsWithOptions(ctx context.Context, posts []*reddit.Post, opts ...ScoringOption) ([]*ScoredPost, error)
-
-// Scoring with extra context
-ScorePostsWithContext(ctx context.Context, contexts []ScoringContext, opts ...ScoringOption) ([]*ScoredPost, error)
+ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
 ```
 
 ### Scoring Options
@@ -413,25 +415,25 @@ WithModel(model string) ScoringOption
 // Custom prompt template (Go template syntax)
 WithPromptTemplate(template string) ScoringOption
 
-// Additional context for all posts
-WithExtraContext(context map[string]string) ScoringOption
+// Additional context for all text items
+WithExtraContext(context map[string]interface{}) ScoringOption
 ```
 
 ## Hidden Context and Gotchas
 
 ### Fixed Batch Size Limitation
-The batch size is hard-coded to 10 posts (`maxBatchSize = 10`). This cannot be configured and is based on OpenAI token limits. Attempting to score more than 10 posts will automatically split them into multiple batches.
+The batch size is hard-coded to 10 text items (`maxBatchSize = 10`). This cannot be configured and is based on OpenAI token limits. Attempting to score more than 10 text items will automatically split them into multiple batches.
 
 ### Score Range Validation
 Scores MUST be integers between 0-100. Out-of-range scores from the API will cause validation errors. The system enforces this through JSON schema validation.
 
 ### Missing Scores Behavior
-If OpenAI returns fewer scores than posts sent, missing scores default to 0 with the reason "Score not found in response". This is logged as a warning but doesn't fail the operation.
+If OpenAI returns fewer scores than text items sent, missing scores default to 0 with the reason "Score not found in response". This is logged as a warning but doesn't fail the operation.
 
 ### Template Syntax Requirements
 Custom prompts MUST either:
 1. Include `%s` placeholder for sprintf-style formatting (legacy)
-2. Use Go template syntax with valid field references: `{{.Posts}}`, `{{.PostTitle}}`, etc.
+2. Use Go template syntax with valid field references: `{{.Items}}`, `{{.ItemContent}}`, etc.
 
 Failing to include proper placeholders will cause a validation error.
 
@@ -489,13 +491,13 @@ If upgrading from pre-v0.9.0:
 ## Performance Considerations
 
 ### Batch Processing Efficiency
-- **Optimal**: 10 posts per batch (current implementation)
-- **API calls**: N/10 calls for N posts
+- **Optimal**: 10 text items per batch (current implementation)
+- **API calls**: N/10 calls for N text items
 - **Cost**: Optimized for GPT-4o-mini pricing
 
 ### Concurrency Settings
 - **Sequential** (`MaxConcurrent = 1`): ~1-2 seconds per batch
-- **Concurrent** (`MaxConcurrent = 5`): Can process 50 posts in ~2-3 seconds
+- **Concurrent** (`MaxConcurrent = 5`): Can process 50 text items in ~2-3 seconds
 - **Maximum recommended**: 10 (to avoid rate limiting)
 
 ### Memory Usage
@@ -517,10 +519,10 @@ If upgrading from pre-v0.9.0:
    - Reduce `MaxConcurrent` to lower load
    - Check network connectivity
 
-3. **Scores returning 0 for all posts**
+3. **Scores returning 0 for all text items**
    - Check API response in debug logs (`LOG_LEVEL=debug`)
    - Verify prompt template includes scoring instructions
-   - Ensure posts have meaningful content
+   - Ensure text items have meaningful content
 
 4. **"score out of range" validation errors**
    - Custom prompts must specify 0-100 score range
@@ -542,7 +544,7 @@ go run -tags debug ./scorer/prompts.go
 ```
 
 ### Log Levels
-- `debug`: Individual post scores, API requests/responses
+- `debug`: Individual text item scores, API requests/responses
 - `info`: Batch completion, configuration
 - `warn`: Missing scores, fallback behavior
 - `error`: API failures, validation errors

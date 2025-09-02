@@ -169,11 +169,11 @@ type RateLimitedScorer struct {
     limiter *rate.Limiter
 }
 
-func (r *RateLimitedScorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*scorer.ScoredPost, error) {
+func (r *RateLimitedScorer) ScoreTexts(ctx context.Context, items []scorer.TextItem) ([]scorer.ScoredItem, error) {
     if err := r.limiter.Wait(ctx); err != nil {
         return nil, err
     }
-    return r.Scorer.ScorePosts(ctx, posts)
+    return r.Scorer.ScoreTexts(ctx, items)
 }
 ```
 
@@ -199,10 +199,10 @@ slog.SetDefault(logger)
 import "github.com/prometheus/client_golang/prometheus"
 
 var (
-    postsScored = prometheus.NewCounterVec(
+    itemsScored = prometheus.NewCounterVec(
         prometheus.CounterOpts{
-            Name: "posts_scored_total",
-            Help: "Total number of posts scored",
+            Name: "items_scored_total",
+            Help: "Total number of text items scored",
         },
         []string{"status"},
     )
@@ -210,14 +210,14 @@ var (
     scoringDuration = prometheus.NewHistogramVec(
         prometheus.HistogramOpts{
             Name: "scoring_duration_seconds",
-            Help: "Time spent scoring posts",
+            Help: "Time spent scoring text items",
         },
         []string{"batch_size"},
     )
 )
 
 func init() {
-    prometheus.MustRegister(postsScored, scoringDuration)
+    prometheus.MustRegister(itemsScored, scoringDuration)
 }
 ```
 
@@ -225,13 +225,14 @@ func init() {
 
 ```go
 func (s *scorer) HealthCheck(ctx context.Context) error {
-    // Test with minimal post
-    testPost := []*reddit.Post{{
-        ID:    "health-check",
-        Title: "Health check post",
+    // Test with minimal text item
+    testItem := []scorer.TextItem{{
+        ID:      "health-check",
+        Content: "Health check text item",
+        Metadata: map[string]interface{}{"title": "Health check"},
     }}
     
-    _, err := s.ScorePosts(ctx, testPost)
+    _, err := s.ScoreTexts(ctx, testItem)
     return err
 }
 ```
@@ -243,12 +244,12 @@ func (s *scorer) HealthCheck(ctx context.Context) error {
 ```go
 import "github.com/cenkalti/backoff/v4"
 
-func ScoreWithRetry(ctx context.Context, s scorer.Scorer, posts []*reddit.Post) ([]*scorer.ScoredPost, error) {
-    var result []*scorer.ScoredPost
+func ScoreWithRetry(ctx context.Context, s scorer.Scorer, items []scorer.TextItem) ([]scorer.ScoredItem, error) {
+    var result []scorer.ScoredItem
     
     operation := func() error {
         var err error
-        result, err = s.ScorePosts(ctx, posts)
+        result, err = s.ScoreTexts(ctx, items)
         return err
     }
     
@@ -286,7 +287,7 @@ func NewCircuitBreakerScorer(s scorer.Scorer) scorer.Scorer {
 
 ### Batch Size Tuning
 
-The library uses a fixed batch size of 10 posts. Monitor performance metrics to determine if this needs adjustment:
+The library uses a fixed batch size of 10 text items. Monitor performance metrics to determine if this needs adjustment:
 
 ```go
 // Future configuration option
@@ -320,8 +321,8 @@ type CachedScorer struct {
     cache *bigcache.BigCache
 }
 
-func (c *CachedScorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*scorer.ScoredPost, error) {
-    // Check cache for previously scored posts
+func (c *CachedScorer) ScoreTexts(ctx context.Context, items []scorer.TextItem) ([]scorer.ScoredItem, error) {
+    // Check cache for previously scored text items
     // Fall back to API for cache misses
 }
 ```
@@ -338,13 +339,13 @@ func (c *CachedScorer) ScorePosts(ctx context.Context, posts []*reddit.Post) ([]
 ### Input Validation
 
 ```go
-func ValidatePosts(posts []*reddit.Post) error {
-    for _, post := range posts {
-        if post.ID == "" {
-            return errors.New("post ID cannot be empty")
+func ValidateTextItems(items []scorer.TextItem) error {
+    for _, item := range items {
+        if item.ID == "" {
+            return errors.New("text item ID cannot be empty")
         }
-        if len(post.Title) > 1000 {
-            return errors.New("post title too long")
+        if len(item.Content) > 10000 {
+            return errors.New("text item content too long")
         }
     }
     return nil
@@ -356,10 +357,10 @@ func ValidatePosts(posts []*reddit.Post) error {
 Ensure scored content doesn't contain sensitive information:
 
 ```go
-func SanitizeScoredPosts(posts []*scorer.ScoredPost) {
-    for _, post := range posts {
+func SanitizeScoredItems(items []scorer.ScoredItem) {
+    for _, item := range items {
         // Remove or mask sensitive data
-        post.Reason = sanitizeReason(post.Reason)
+        item.Reason = sanitizeReason(item.Reason)
     }
 }
 ```

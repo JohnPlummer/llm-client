@@ -59,7 +59,7 @@ Warning: incomplete scores from OpenAI, expected_count=5, received_count=0
 1. **Prompt formatting issues:**
    ```go
    // Ensure custom prompt includes %s placeholder
-   prompt := "Score these posts: %s"
+   prompt := "Score these text items: %s"
    ```
 
 2. **Invalid JSON response:**
@@ -68,12 +68,12 @@ Warning: incomplete scores from OpenAI, expected_count=5, received_count=0
    - Use default prompt to test
 
 3. **Model limitations:**
-   - Posts may be too long for context window
+   - Text items may be too long for context window
    - Try reducing batch size manually
 
 #### Invalid Score Ranges
 ```
-Error: invalid score 150 for post abc123: score must be between 0 and 100
+Error: invalid score 150 for text item abc123: score must be between 0 and 100
 ```
 
 **Solutions:**
@@ -85,12 +85,12 @@ Error: invalid score 150 for post abc123: score must be between 0 and 100
 2. **Add validation example:**
    ```text
    Example valid response:
-   {"version": "1.0", "scores": [{"post_id": "123", "title": "Title", "score": 85, "reason": "Explanation"}]}
+   {"version": "1.0", "scores": [{"item_id": "123", "score": 85, "reason": "Explanation"}]}
    ```
 
-#### Missing Scores for Some Posts
+#### Missing Scores for Some Text Items
 ```
-Warning: missing score from OpenAI response, assigning default score, post_id=xyz789
+Warning: missing score from OpenAI response, assigning default score, item_id=xyz789
 ```
 
 **Expected Behavior:** This is normal graceful degradation. The library automatically assigns score 0 with explanation.
@@ -98,12 +98,12 @@ Warning: missing score from OpenAI response, assigning default score, post_id=xy
 **To reduce frequency:**
 1. **Improve prompt clarity:**
    ```text
-   CRITICAL: You MUST score every single post. Never skip any posts.
+   CRITICAL: You MUST score every single text item. Never skip any items.
    ```
 
 2. **Use smaller batches:**
    ```go
-   // Process posts in smaller groups
+   // Process text items in smaller groups
    const customBatchSize = 5
    ```
 
@@ -205,9 +205,9 @@ Error: reading CSV records: record on line 3: wrong number of fields
 **Solutions:**
 1. **Check CSV format:**
    ```csv
-   id,title,text
-   post1,"Restaurant recommendation","Looking for good food"
-   post2,"Events this weekend","What's happening?"
+   id,content,metadata
+   item1,"Restaurant recommendation - Looking for good food","{\"title\": \"Restaurant recommendation\"}"
+   item2,"Events this weekend - What's happening?","{\"title\": \"Events this weekend\"}"
    ```
 
 2. **Handle malformed CSV:**
@@ -286,7 +286,7 @@ Error: no test files found
    ```
 
 **Solutions:**
-1. **Reduce batch size** if posts are very long
+1. **Reduce batch size** if text items are very long
 2. **Check network latency** to OpenAI API
 3. **Monitor API response times**
 
@@ -296,10 +296,10 @@ Error: no test files found
 **Solutions:**
 1. **Process in smaller chunks:**
    ```go
-   const maxPosts = 100
-   for i := 0; i < len(allPosts); i += maxPosts {
-       chunk := allPosts[i:min(i+maxPosts, len(allPosts))]
-       results, err := scorer.ScorePosts(ctx, chunk)
+   const maxItems = 100
+   for i := 0; i < len(allItems); i += maxItems {
+       chunk := allItems[i:min(i+maxItems, len(allItems))]
+       results, err := scorer.ScoreTexts(ctx, chunk)
        // Process results immediately
    }
    ```
@@ -327,20 +327,21 @@ slog.SetDefault(logger)
 
 ```go
 func debugScoring() {
-    s, err := scorer.New(scorer.Config{
+    s, err := scorer.NewScorer(scorer.Config{
         OpenAIKey: os.Getenv("OPENAI_API_KEY"),
     })
     if err != nil {
         panic(err)
     }
 
-    // Test with single simple post
-    posts := []*reddit.Post{{
-        ID:    "debug1",
-        Title: "Test restaurant post",
+    // Test with single simple text item
+    items := []scorer.TextItem{{
+        ID:      "debug1",
+        Content: "Test restaurant post - Looking for good food",
+        Metadata: map[string]interface{}{"title": "Test restaurant post"},
     }}
 
-    results, err := s.ScorePosts(context.Background(), posts)
+    results, err := s.ScoreTexts(context.Background(), items)
     if err != nil {
         fmt.Printf("Error: %v\n", err)
         return
@@ -374,7 +375,7 @@ func validateSetup() {
     fmt.Println("✅ OpenAI API connectivity confirmed")
 
     // Test scorer creation
-    _, err = scorer.New(scorer.Config{OpenAIKey: apiKey})
+    _, err = scorer.NewScorer(scorer.Config{OpenAIKey: apiKey})
     if err != nil {
         fmt.Printf("❌ Scorer creation failed: %v\n", err)
         return

@@ -27,19 +27,16 @@ go mod tidy
 ### Core Dependencies
 
 - `github.com/sashabaranov/go-openai v1.37.0` - OpenAI API client
-- `github.com/JohnPlummer/reddit-client v0.0.0` - Reddit post types (local dependency)
+- Generic text scoring with `TextItem` and `ScoredItem` types (no external dependencies)
 
 ### Development Dependencies
 
 - `github.com/onsi/ginkgo/v2 v2.23.4` - BDD testing framework
 - `github.com/onsi/gomega v1.36.3` - Matcher library for tests
 
-### Local Dependencies
+### Architecture
 
-The project uses a local `reddit-client` dependency via Go module replacement:
-```go
-replace github.com/JohnPlummer/reddit-client => ../reddit-client
-```
+The project is self-contained with no external text processing dependencies. All text scoring functionality is built into the core `scorer` package.
 
 ## Development Commands
 
@@ -130,7 +127,7 @@ config := scorer.Config{
 
 ### Project-Specific Guidelines
 
-- **Batch Size**: Maintain maximum batch size of 10 posts per OpenAI API call
+- **Batch Size**: Maintain maximum batch size of 10 text items per OpenAI API call
 - **Error Resilience**: Always provide fallback behavior (default score of 0)
 - **JSON Validation**: Strictly validate OpenAI response structure
 - **Prompt Management**: Keep prompts in embedded files for version control

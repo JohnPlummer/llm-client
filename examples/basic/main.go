@@ -80,7 +80,7 @@ func main() {
 	customPrompt := `Rate the following text for relevance to local events and activities.
 Score 0-100 where 100 is highly relevant to local events.
 Output ONLY valid JSON in this format:
-{"version":"1.0","scores":[{"post_id":"ID","score":0-100,"reason":"explanation"}]}
+{"version":"1.0","scores":[{"item_id":"ID","score":0-100,"reason":"explanation"}]}
 
 Text to score:
 %s`

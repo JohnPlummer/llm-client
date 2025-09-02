@@ -60,9 +60,9 @@ This includes:
 ### Generic Text Scoring
 
 ```go
-// New generic API - not limited to Reddit posts
+// New generic API - not limited to any specific platform
 items := []scorer.TextItem{
-    {ID: "1", Title: "Title", Body: "Content"},
+    {ID: "1", Content: "Sample text content", Metadata: map[string]interface{}{"title": "Title"}},
 }
 results, err := scorer.ScoreTexts(ctx, items)
 ```
@@ -98,8 +98,8 @@ While the example is running, you can access:
 ## Files
 
 - `main.go` - Example implementation
-- `example_posts.csv` - Sample data
-- `example_comments.csv` - Additional context data
+- `example_items.csv` - Sample text data
+- `example_metadata.csv` - Additional context data
 - `custom_prompt.txt` - Custom scoring prompt
 
 ## Migration from v0.9.x

@@ -60,7 +60,7 @@ After implementation:
 - `README.md`
 
 **Implementation**:
-1. Change line 40 from `[]reddit.Post` to `[]*reddit.Post`
+1. Change line 40 from `[]TextItem` to use proper pointer handling
 2. Change line 54 from `%.2f` to `%d` for Score formatting
 3. Ensure all code examples compile correctly
 
@@ -93,7 +93,7 @@ if cfg.OpenAIKey == "" && client == nil {
 }
 
 if cfg.PromptText != "" && !strings.Contains(cfg.PromptText, "%s") {
-    return nil, errors.New("custom prompt must contain %s placeholder for posts")
+    return nil, errors.New("custom prompt must contain %s placeholder for text items")
 }
 
 if cfg.MaxConcurrent < 0 {
@@ -119,14 +119,14 @@ After implementation:
 
 **Implementation**:
 1. Wrap all errors with context using fmt.Errorf
-2. Include relevant information (batch number, post count, etc.)
+2. Include relevant information (batch number, text item count, etc.)
 3. Use consistent error message format
 
 **Example**:
 ```go
 // In processBatch
 if err != nil {
-    return nil, fmt.Errorf("failed to create chat completion for batch of %d posts: %w", len(posts), err)
+    return nil, fmt.Errorf("failed to create chat completion for batch of %d text items: %w", len(items), err)
 }
 ```
 
@@ -140,33 +140,26 @@ After implementation:
 
 ## ✅ Step 5: Add Input Validation
 
-**Problem**: No validation for nil posts or empty slices.
+**Problem**: No validation for empty text items or empty slices.
 
 **Files to modify**:
 - `scorer/scorer.go`
 
 **Implementation**:
-1. Add validation at the start of ScorePosts
-2. Check for nil posts in the slice
+1. Add validation at the start of ScoreTexts
+2. Check for empty text items in the slice
 3. Handle empty slice gracefully (return empty result)
 
 **Expected changes**:
 ```go
-// In ScorePosts
-if posts == nil {
-    return nil, errors.New("posts cannot be nil")
+// In ScoreTexts
+if len(items) == 0 {
+    return []ScoredItem{}, nil
 }
 
-if len(posts) == 0 {
-    return []*ScoredPost{}, nil
-}
-
-for i, post := range posts {
-    if post == nil {
-        return nil, fmt.Errorf("post at index %d is nil", i)
-    }
-    if post.ID == "" {
-        return nil, fmt.Errorf("post at index %d has empty ID", i)
+for i, item := range items {
+    if item.ID == "" {
+        return nil, fmt.Errorf("text item at index %d has empty ID", i)
     }
 }
 ```
@@ -175,7 +168,7 @@ After implementation:
 - [ ] Run `make check`
 - [ ] Add tests for validation cases
 - [ ] Mark as complete: ✅ Step 5: Add Input Validation
-- [ ] Commit: `git commit -m "feat: add input validation for posts"`
+- [ ] Commit: `git commit -m "feat: add input validation for text items"`
 
 ---
 
@@ -231,7 +224,7 @@ After implementation:
 **Implementation**:
 1. Add test for prompt validation error
 2. Add test for JSON marshaling error path
-3. Add test for nil posts validation
+3. Add test for empty text items validation
 4. Add test for empty ID validation
 5. Increase coverage for New() function
 
@@ -281,7 +274,7 @@ After implementation:
 
 **High-level approach**:
 ```go
-func (s *scorer) processConcurrently(ctx context.Context, batches [][]*reddit.Post) ([]*ScoredPost, error) {
+func (s *scorer) processConcurrently(ctx context.Context, batches [][]TextItem) ([]ScoredItem, error) {
     if s.config.MaxConcurrent <= 1 {
         // Fall back to sequential processing
         return s.processSequentially(ctx, batches)
@@ -333,9 +326,9 @@ After implementation:
 - Add comment in go.mod explaining the local replacement
 
 **Implementation**:
-1. Add a section in README explaining the reddit-client dependency
-2. Document how to handle this for external users
-3. Consider options for properly publishing reddit-client
+1. Update documentation to reflect generic text scoring capabilities
+2. Document the migration from Reddit-specific to generic text processing
+3. Remove references to external Reddit dependencies
 
 After implementation:
 - [ ] Run `make check`

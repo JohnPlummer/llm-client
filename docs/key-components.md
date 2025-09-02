@@ -9,11 +9,18 @@ The main interface that defines the scoring functionality:
 
 ```go
 type Scorer interface {
-    ScorePosts(ctx context.Context, posts []*reddit.Post) ([]*ScoredPost, error)
+    // ScoreTexts scores a slice of text items
+    ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
+    
+    // ScoreTextsWithOptions scores text items with runtime options
+    ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
+    
+    // GetHealth returns the current health status of the scorer
+    GetHealth(ctx context.Context) HealthStatus
 }
 ```
 
-**Purpose**: Provides a clean abstraction for scoring Reddit posts, enabling easy testing and alternative implementations.
+**Purpose**: Provides a clean abstraction for scoring generic text content, enabling easy testing and alternative implementations.
 
 ### OpenAIClient Interface  
 **Location**: `scorer/types.go:30-33`
@@ -30,21 +37,21 @@ type OpenAIClient interface {
 
 ## Core Types
 
-### ScoredPost
-**Location**: `scorer/types.go:16-21`
+### ScoredItem
+**Location**: `scorer/types.go:19-24`
 
 The primary output type containing scored results:
 
 ```go
-type ScoredPost struct {
-    Post   *reddit.Post
-    Score  int
-    Reason string
+type ScoredItem struct {
+    Item   TextItem // Original text item
+    Score  int      // Score between 0-100
+    Reason string   // AI explanation for the score
 }
 ```
 
 **Fields**:
-- `Post`: Original Reddit post data
+- `Item`: Original text item data (TextItem with ID, Content, Metadata)
 - `Score`: AI-generated relevance score (0-100)
 - `Reason`: Explanation for the assigned score
 
@@ -55,16 +62,26 @@ Configuration structure for scorer initialization:
 
 ```go
 type Config struct {
-    OpenAIKey     string
-    PromptText    string
-    MaxConcurrent int
+    APIKey               string                // OpenAI API key (required)
+    Model                string                // OpenAI model to use
+    PromptText           string                // Custom prompt template
+    MaxConcurrent        int                   // Maximum concurrent API calls
+    EnableCircuitBreaker bool                  // Enable circuit breaker pattern
+    EnableRetry          bool                  // Enable retry with backoff
+    Timeout              time.Duration         // Request timeout
+    CircuitBreakerConfig *CircuitBreakerConfig // Circuit breaker configuration
+    RetryConfig          *RetryConfig          // Retry configuration
 }
 ```
 
 **Fields**:
-- `OpenAIKey`: Required OpenAI API key
-- `PromptText`: Optional custom prompt (uses default if empty)
-- `MaxConcurrent`: Optional rate limiting (not yet implemented)
+- `APIKey`: Required OpenAI API key
+- `Model`: Optional model selection (defaults to GPT-4o-mini)
+- `PromptText`: Optional custom prompt template
+- `MaxConcurrent`: Optional concurrent request limiting
+- `EnableCircuitBreaker`: Enable circuit breaker for resilience
+- `EnableRetry`: Enable retry with backoff
+- `Timeout`: Request timeout duration
 
 ## Implementation Details
 
@@ -92,11 +109,11 @@ type scorer struct {
 ### 1. Batch Creation
 **Location**: `scorer/scorer.go:68-87`
 
-The `ScorePosts` method splits input posts into batches of maximum 10 posts each:
+The `ScoreTexts` method splits input text items into batches of maximum 10 items each:
 
 ```go
-for i := 0; i < len(posts); i += maxBatchSize {
-    results, err := s.processBatch(ctx, posts[i:min(i+maxBatchSize, len(posts))])
+for i := 0; i < len(items); i += maxBatchSize {
+    results, err := s.processBatch(ctx, items[i:min(i+maxBatchSize, len(items))])
     // ...
 }
 ```
@@ -112,7 +129,7 @@ for i := 0; i < len(posts); i += maxBatchSize {
 The `createChatCompletion` method constructs structured API requests:
 
 - **System Prompt**: Loaded from embedded `prompts/system_prompt.txt`
-- **User Prompt**: Formatted JSON containing posts to score
+- **User Prompt**: Formatted JSON containing text items to score
 - **Response Format**: Enforced JSON schema validation
 - **Model**: Uses `openai.GPT4oMini` for cost efficiency
 
@@ -122,7 +139,7 @@ The `createChatCompletion` method constructs structured API requests:
 The `parseResponse` method handles API responses with robust validation:
 
 ```go
-func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPostCount int) (map[string]scoreItem, error)
+func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedItemCount int) (map[string]scoreItem, error)
 ```
 
 **Validation Steps**:
@@ -134,7 +151,7 @@ func (s *scorer) parseResponse(resp *openai.ChatCompletionResponse, expectedPost
 ### 4. Result Assembly
 **Location**: `scorer/batch.go:96-127`
 
-The `createScoredPosts` method creates final results with graceful fallbacks:
+The `createScoredItems` method creates final results with graceful fallbacks:
 
 **Fallback Behavior**:
 - Missing scores default to 0
@@ -147,24 +164,24 @@ The `createScoredPosts` method creates final results with graceful fallbacks:
 **Location**: `scorer/prompts/system_prompt.txt`
 
 Embedded prompt that defines the AI's role and scoring criteria:
-- Focuses on location-based recommendations and events
-- Requires scoring of ALL input posts
-- Emphasizes use of comments for additional context
+- Focuses on generic text content scoring
+- Requires scoring of ALL input text items
+- Utilizes metadata for additional context
 
 ### Custom Prompts
 **Location**: `scorer/prompts.go`
 
 Default batch processing prompt with JSON formatting requirements:
-- Must include `%s` placeholder for post injection
+- Must include `%s` placeholder for text item injection
 - Must produce valid JSON responses
 - Must include version and scores array structure
 
 ## Data Flow
 
 ```
-Input Posts
+Input Text Items
     ↓
-Batch Splitting (max 10 posts)
+Batch Splitting (max 10 items)
     ↓
 JSON Formatting
     ↓
@@ -176,7 +193,7 @@ Response Parsing
     ↓
 Score Validation (0-100)
     ↓
-ScoredPost Creation
+ScoredItem Creation
     ↓
 Result Assembly
 ```

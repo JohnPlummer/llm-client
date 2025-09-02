@@ -150,32 +150,3 @@ func WithExtraContext(context map[string]interface{}) ScoringOption {
 	}
 }
 
-// DEPRECATED: Legacy types for backward compatibility reference only
-// These will be removed in v1.0.0
-
-// RedditScorer provides methods to score Reddit posts using ChatGPT (DEPRECATED - use Scorer)
-type RedditScorer interface {
-	ScorePosts(ctx context.Context, posts []*RedditPost) ([]*ScoredPost, error)
-	ScorePostsWithOptions(ctx context.Context, posts []*RedditPost, opts ...ScoringOption) ([]*ScoredPost, error)
-	ScorePostsWithContext(ctx context.Context, contexts []ScoringContext, opts ...ScoringOption) ([]*ScoredPost, error)
-}
-
-// RedditPost is a placeholder for the reddit.Post type (DEPRECATED)
-type RedditPost struct {
-	ID      string
-	Title   string
-	Content string
-}
-
-// ScoredPost represents a Reddit post with its AI-generated score (DEPRECATED - use ScoredItem)
-type ScoredPost struct {
-	Post   *RedditPost
-	Score  int
-	Reason string
-}
-
-// ScoringContext represents a post with additional context for scoring (DEPRECATED)
-type ScoringContext struct {
-	Post      *RedditPost
-	ExtraData map[string]string
-}

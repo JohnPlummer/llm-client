@@ -39,8 +39,8 @@ func main() {
 
     // Score text items
     items := []scorer.TextItem{
-        {ID: "1", Title: "Best coffee shops in Seattle", Body: "Looking for recommendations..."},
-        {ID: "2", Title: "Moving to Portland", Body: "What neighborhoods are family-friendly?"},
+        {ID: "1", Content: "Best coffee shops in Seattle - Looking for recommendations...", Metadata: map[string]interface{}{"title": "Best coffee shops in Seattle"}},
+        {ID: "2", Content: "Moving to Portland - What neighborhoods are family-friendly?", Metadata: map[string]interface{}{"title": "Moving to Portland"}},
     }
 
     results, err := s.ScoreTexts(context.Background(), items)
@@ -50,8 +50,9 @@ func main() {
 
     // Use the results
     for _, result := range results {
-        fmt.Printf("Title: %s\nScore: %d\nReason: %s\n\n",
-            result.Item.Title,
+        title := result.Item.Metadata["title"]
+        fmt.Printf("Content: %s\nScore: %d\nReason: %s\n\n",
+            title,
             result.Score,
             result.Reason)
     }
@@ -163,11 +164,11 @@ Override the model for specific scoring requests:
 
 ```go
 // Use GPT-4 for more accurate scoring
-scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
+results, err := scorer.ScoreTextsWithOptions(ctx, items,
     scorer.WithModel("gpt-4"))
 
 // Use GPT-3.5-turbo for faster, cheaper scoring
-scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
+results, err := scorer.ScoreTextsWithOptions(ctx, items,
     scorer.WithModel("gpt-3.5-turbo"))
 ```
 
@@ -177,34 +178,36 @@ Use Go template syntax for dynamic prompts:
 
 ```go
 // Template with extra context
-template := "Score posts for {{.City}}: {{.Posts}}"
-scoredPosts, err := scorer.ScorePostsWithOptions(ctx, posts,
+template := "Score text items for {{.City}}: {{.Items}}"
+results, err := scorer.ScoreTextsWithOptions(ctx, items,
     scorer.WithPromptTemplate(template),
-    scorer.WithExtraContext(map[string]string{"City": "Brighton"}))
+    scorer.WithExtraContext(map[string]interface{}{"City": "Brighton"}))
 ```
 
-### Scoring with Context
+### Scoring with Additional Context
 
-Score posts with additional context data like comments:
+Score text items with extra metadata:
 
 ```go
-contexts := []scorer.ScoringContext{
+items := []scorer.TextItem{
     {
-        Post: post,
-        ExtraData: map[string]string{
-            "Comments": "Great coffee! Been there many times.",
-            "Metadata": "Posted in r/Brighton",
+        ID: "1",
+        Content: "Best coffee shops in Seattle - Looking for recommendations...",
+        Metadata: map[string]interface{}{
+            "title": "Best coffee shops in Seattle",
+            "comments": "Great coffee! Been there many times.",
+            "location": "Brighton",
         },
     },
 }
 
-// Use a template that includes the extra context
-template := `Score this post:
-Title: {{range .Contexts}}{{.PostTitle}}{{end}}
-Body: {{range .Contexts}}{{.PostBody}}{{end}}
-Comments: {{range .Contexts}}{{.Comments}}{{end}}`
+// Use a template that includes the metadata
+template := `Score this text item:
+Title: {{range .Items}}{{.Metadata.title}}{{end}}
+Content: {{range .Items}}{{.Content}}{{end}}
+Comments: {{range .Items}}{{.Metadata.comments}}{{end}}`
 
-scoredPosts, err := scorer.ScorePostsWithContext(ctx, contexts,
+results, err := scorer.ScoreTextsWithOptions(ctx, items,
     scorer.WithPromptTemplate(template),
     scorer.WithModel("gpt-4o"))
 ```
@@ -218,8 +221,7 @@ Your prompt must instruct the LLM to return JSON in this exact format:
   "version": "1.0",
   "scores": [
     {
-      "post_id": "<id>",
-      "title": "<title>",
+      "item_id": "<id>",
       "score": <0-100>,
       "reason": "<explanation>"
     }
@@ -232,8 +234,8 @@ Critical requirements:
 1. Output must be ONLY valid JSON (no markdown or other formatting)
 2. All fields are required
 3. Score must be between 0-100
-4. Every post must receive a score and reason
-5. Include `%s` as placeholder for simple prompts, or use Go template syntax for advanced prompts
+4. Every text item must receive a score and reason
+5. Include `%s` as placeholder for simple prompts, or use Go template syntax for advanced prompts with `.Items` field access
 
 See `examples/basic/custom_prompt.txt` for a complete example prompt.
 

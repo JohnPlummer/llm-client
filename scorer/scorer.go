@@ -243,24 +243,3 @@ func min(a, b int) int {
 	return b
 }
 
-// DEPRECATED: Legacy constructors for backward compatibility reference
-// These will be removed in v1.0.0
-
-// New creates a new instance of the Scorer (DEPRECATED - use NewScorer)
-func New(cfg Config) (RedditScorer, error) {
-	slog.Warn("Using deprecated New() constructor, please migrate to NewScorer()")
-	// Convert to legacy interface wrapper if needed
-	return nil, errors.New("deprecated: use NewScorer instead")
-}
-
-// NewWithClient creates a new scorer with a custom OpenAI client (DEPRECATED)
-func NewWithClient(client OpenAIClient, opts ...func(*scorer)) RedditScorer {
-	slog.Warn("Using deprecated NewWithClient() constructor")
-	return nil
-}
-
-// NewWithClientAndOptions creates a new scorer with options (DEPRECATED)
-func NewWithClientAndOptions(client OpenAIClient, prompt string, maxConcurrent int) RedditScorer {
-	slog.Warn("Using deprecated NewWithClientAndOptions() constructor")
-	return nil
-}

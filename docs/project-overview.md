@@ -17,10 +17,10 @@ This is a Go library built around the `scorer` package, which provides a clean i
 
 ### Core Components
 
-- **Scorer Interface** (`scorer/types.go`): Main interface defining the `ScorePosts()` method
+- **Scorer Interface** (`scorer/types.go`): Main interface defining the `ScoreTexts()` method
 - **scorer struct** (`scorer/scorer.go`): Primary implementation with OpenAI client integration
-- **Batch Processing** (`scorer/batch.go`): Handles efficient processing of posts in batches (maximum 10 per batch)
-- **Types** (`scorer/types.go`): Core data structures including `ScoredPost`, `Config`, and `scoreResponse`
+- **Batch Processing** (`scorer/batch.go`): Handles efficient processing of text items in batches (maximum 10 per batch)
+- **Types** (`scorer/types.go`): Core data structures including `ScoredItem`, `TextItem`, `Config`, and `scoreResponse`
 
 ### Key Features
 
@@ -35,7 +35,7 @@ This is a Go library built around the `scorer` package, which provides a clean i
 
 - **Language**: Go 1.23.1+
 - **AI Integration**: OpenAI GPT API via `github.com/sashabaranov/go-openai`
-- **Data Source**: Reddit posts via `github.com/JohnPlummer/reddit-client`
+- **Data Source**: Generic text items via `TextItem` struct with ID, Content, and Metadata fields
 - **Testing**: Ginkgo BDD framework with Gomega matchers
 - **Build System**: Make-based with comprehensive targets
 
@@ -65,8 +65,8 @@ llm-client/
 
 ## Use Cases
 
-- **Content Curation**: Automatically identify high-quality posts for community highlights
-- **Location-Based Filtering**: Score posts based on geographic relevance (default behavior)
-- **Custom Criteria Scoring**: Evaluate posts against any custom criteria using tailored prompts
-- **Batch Content Analysis**: Process large volumes of social media content efficiently
-- **Quality Assessment**: Rank posts by engagement potential or informational value
+- **Content Curation**: Automatically identify high-quality text content for various applications
+- **Location-Based Filtering**: Score text items based on geographic relevance (configurable via metadata)
+- **Custom Criteria Scoring**: Evaluate text content against any custom criteria using tailored prompts
+- **Batch Content Analysis**: Process large volumes of text content efficiently
+- **Quality Assessment**: Rank text content by relevance, quality, or informational value

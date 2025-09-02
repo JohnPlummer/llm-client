@@ -16,25 +16,25 @@ func TestExecutionWithMockedAPI(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping integration test in short mode")
 	}
-	
+
 	// This test verifies that the main function can run without crashing
 	// when proper environment is set up
-	
+
 	// Create a temporary .env file for testing
 	envContent := `OPENAI_API_KEY=test-mock-api-key-for-integration-testing
 LOG_LEVEL=error
 `
-	
+
 	err := os.WriteFile(".env.test", []byte(envContent), 0644)
 	if err != nil {
 		t.Fatalf("Failed to create test .env file: %v", err)
 	}
 	defer os.Remove(".env.test")
-	
+
 	// Set environment for testing
-	originalAPIKey := os.Getenv("OPENAI_API_KEY") 
+	originalAPIKey := os.Getenv("OPENAI_API_KEY")
 	originalLogLevel := os.Getenv("LOG_LEVEL")
-	
+
 	defer func() {
 		if originalAPIKey != "" {
 			os.Setenv("OPENAI_API_KEY", originalAPIKey)
@@ -47,13 +47,13 @@ LOG_LEVEL=error
 			os.Unsetenv("LOG_LEVEL")
 		}
 	}()
-	
+
 	// Set test environment
 	os.Setenv("OPENAI_API_KEY", "test-mock-key")
 	os.Setenv("LOG_LEVEL", "error")
-	
+
 	t.Log("Environment configured for integration test")
-	
+
 	// Note: Full execution would require actual API calls
 	// This test validates environment setup and initial validation
 }
@@ -63,15 +63,15 @@ func TestCompilationAndBuild(t *testing.T) {
 	// Test that the module builds successfully
 	cmd := exec.Command("go", "build", "-o", "example_test", ".")
 	output, err := cmd.CombinedOutput()
-	
+
 	if err != nil {
 		t.Errorf("Build failed: %v\nOutput: %s", err, string(output))
 		return
 	}
-	
+
 	// Clean up built binary
 	defer os.Remove("example_test")
-	
+
 	// Verify binary was created
 	if _, err := os.Stat("example_test"); os.IsNotExist(err) {
 		t.Error("Build did not create expected binary")
@@ -85,16 +85,16 @@ func TestModuleTidy(t *testing.T) {
 	// Run go mod tidy
 	cmd := exec.Command("go", "mod", "tidy")
 	output, err := cmd.CombinedOutput()
-	
+
 	if err != nil {
 		t.Errorf("go mod tidy failed: %v\nOutput: %s", err, string(output))
 		return
 	}
-	
+
 	// Verify no changes needed (in a clean state)
 	cmd = exec.Command("go", "mod", "verify")
 	output, err = cmd.CombinedOutput()
-	
+
 	if err != nil {
 		t.Errorf("go mod verify failed: %v\nOutput: %s", err, string(output))
 	} else {
@@ -108,7 +108,7 @@ func TestValidExampleData(t *testing.T) {
 		"example_items.csv",
 		"example_items_edge_cases.csv",
 	}
-	
+
 	for _, filename := range testFiles {
 		t.Run(filename, func(t *testing.T) {
 			items, err := loadTextItems(filename)
@@ -116,12 +116,12 @@ func TestValidExampleData(t *testing.T) {
 				t.Errorf("Failed to load %s: %v", filename, err)
 				return
 			}
-			
+
 			if len(items) == 0 {
 				t.Errorf("File %s contains no valid items", filename)
 				return
 			}
-			
+
 			// Validate each item has required fields
 			for i, item := range items {
 				if item.ID == "" {
@@ -133,13 +133,13 @@ func TestValidExampleData(t *testing.T) {
 				if len(item.Content) < 10 {
 					t.Errorf("Item %d in %s has suspiciously short content: %q", i, filename, item.Content)
 				}
-				
+
 				// Validate metadata
 				if item.Metadata == nil {
 					t.Errorf("Item %d in %s has nil metadata", i, filename)
 					continue
 				}
-				
+
 				requiredMetadataFields := []string{"title", "body", "source"}
 				for _, field := range requiredMetadataFields {
 					if _, exists := item.Metadata[field]; !exists {
@@ -147,7 +147,7 @@ func TestValidExampleData(t *testing.T) {
 					}
 				}
 			}
-			
+
 			t.Logf("File %s validated successfully with %d items", filename, len(items))
 		})
 	}
@@ -156,33 +156,33 @@ func TestValidExampleData(t *testing.T) {
 // TestCustomPromptTemplate verifies custom prompt file exists and loads
 func TestCustomPromptTemplate(t *testing.T) {
 	filename := "custom_prompt.txt"
-	
+
 	content, err := os.ReadFile(filename)
 	if err != nil {
 		t.Errorf("Failed to read %s: %v", filename, err)
 		return
 	}
-	
+
 	promptText := string(content)
-	
+
 	// Verify basic structure
 	if len(promptText) < 50 {
 		t.Errorf("Custom prompt seems too short: %d characters", len(promptText))
 	}
-	
+
 	// Check for essential elements
 	essentialElements := []string{
 		"score", // Should mention scoring
 		"JSON",  // Should specify JSON format
 		"0-100", // Should specify score range
 	}
-	
+
 	for _, element := range essentialElements {
 		if !strings.Contains(strings.ToLower(promptText), strings.ToLower(element)) {
 			t.Errorf("Custom prompt missing essential element: %s", element)
 		}
 	}
-	
+
 	t.Logf("Custom prompt template validated (%d characters)", len(promptText))
 }
 
@@ -193,47 +193,47 @@ func TestEnvironmentVariableHandling(t *testing.T) {
 		t.Error(".env.example file is missing")
 		return
 	}
-	
+
 	// Read .env.example
 	content, err := os.ReadFile(".env.example")
 	if err != nil {
 		t.Errorf("Failed to read .env.example: %v", err)
 		return
 	}
-	
+
 	exampleContent := string(content)
-	
+
 	// Verify it contains expected variables
 	expectedVars := []string{
 		"OPENAI_API_KEY",
-		"LOG_LEVEL", 
+		"LOG_LEVEL",
 	}
-	
+
 	for _, variable := range expectedVars {
 		if !strings.Contains(exampleContent, variable) {
 			t.Errorf(".env.example missing variable: %s", variable)
 		}
 	}
-	
+
 	t.Log(".env.example file validated")
 }
 
 // TestConcurrentProcessingConfig verifies concurrent configuration works
 func TestConcurrentProcessingConfig(t *testing.T) {
 	apiKey := "test-concurrent-config"
-	
+
 	// Test that createCustomScorer doesn't panic with concurrent settings
 	defer func() {
 		if r := recover(); r != nil {
 			t.Errorf("createCustomScorer with concurrent config panicked: %v", r)
 		}
 	}()
-	
+
 	scorer := createCustomScorer(apiKey)
 	if scorer == nil {
 		t.Error("createCustomScorer returned nil with concurrent config")
 	}
-	
+
 	t.Log("Concurrent processing configuration validated")
 }
 
@@ -241,18 +241,18 @@ func TestConcurrentProcessingConfig(t *testing.T) {
 func TestMetricsServerSetup(t *testing.T) {
 	// This test verifies the startMetricsServer function exists and is callable
 	// without actually starting the server
-	
+
 	defer func() {
 		if r := recover(); r != nil {
 			t.Errorf("startMetricsServer function panicked when called: %v", r)
 		}
 	}()
-	
+
 	// Just verify the function exists by referencing it
 	if startMetricsServer == nil {
 		t.Error("startMetricsServer function is nil")
 	}
-	
+
 	t.Log("Metrics server setup function validated")
 }
 
@@ -262,28 +262,28 @@ func TestReadmeDocumentation(t *testing.T) {
 		t.Skip("README.md not found - skipping documentation test")
 		return
 	}
-	
+
 	content, err := os.ReadFile("README.md")
 	if err != nil {
 		t.Errorf("Failed to read README.md: %v", err)
 		return
 	}
-	
+
 	readme := string(content)
-	
+
 	// Check for essential documentation elements
 	essentialSections := []string{
 		"example",
 		"usage",
 		"setup",
 	}
-	
+
 	for _, section := range essentialSections {
 		if !strings.Contains(strings.ToLower(readme), section) {
 			t.Errorf("README.md missing section about: %s", section)
 		}
 	}
-	
+
 	t.Log("README.md documentation validated")
 }
 
@@ -292,7 +292,7 @@ func TestFullIntegrationPipeline(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping full integration pipeline in short mode")
 	}
-	
+
 	pipeline := []struct {
 		name string
 		test func(*testing.T) error
@@ -345,7 +345,7 @@ func TestFullIntegrationPipeline(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, step := range pipeline {
 		t.Run(step.name, func(t *testing.T) {
 			if err := step.test(t); err != nil {
@@ -361,21 +361,21 @@ func TestFullIntegrationPipeline(t *testing.T) {
 func TestTimeouts(t *testing.T) {
 	// Test that createCustomScorer sets reasonable timeouts
 	apiKey := "test-timeout-config"
-	
+
 	start := time.Now()
 	scorer := createCustomScorer(apiKey)
 	duration := time.Since(start)
-	
+
 	if scorer == nil {
 		t.Error("createCustomScorer returned nil")
 		return
 	}
-	
+
 	// Scorer creation should be fast
 	if duration > 5*time.Second {
 		t.Errorf("Scorer creation took too long: %v", duration)
 	}
-	
+
 	t.Logf("Scorer creation completed in %v", duration)
 }
 
@@ -387,16 +387,16 @@ func BenchmarkFullPipeline(b *testing.B) {
 		if err != nil {
 			b.Fatalf("Failed to load text items: %v", err)
 		}
-		
+
 		// Create scorer
 		scorer := createCustomScorer("benchmark-key")
 		if scorer == nil {
 			b.Fatal("createCustomScorer returned nil")
 		}
-		
+
 		// Setup logger (lightweight)
 		setupLogger()
-		
+
 		b.Logf("Pipeline iteration %d completed with %d items", i, len(items))
 	}
 }

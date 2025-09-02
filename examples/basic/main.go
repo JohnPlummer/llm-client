@@ -56,7 +56,7 @@ func main() {
 	results, err := productionScorer.ScoreTexts(ctx, items)
 	if err != nil {
 		slog.Error("Failed to score texts", "error", err)
-		
+
 		// Check health status when scoring fails
 		health := productionScorer.GetHealth(ctx)
 		if !health.Healthy {
@@ -75,7 +75,7 @@ func main() {
 	// Example 2: Custom configuration with specific resilience settings
 	fmt.Println("\n2. Custom Configuration Example")
 	customScorer := createCustomScorer(apiKey)
-	
+
 	// Score with custom prompt template
 	customPrompt := `Rate the following text for relevance to local events and activities.
 Score 0-100 where 100 is highly relevant to local events.
@@ -113,7 +113,7 @@ Text to score:
 	fmt.Println("  // go startMetricsServer()")
 	fmt.Println("  // fmt.Println(\"Prometheus metrics at http://localhost:8080/metrics\")")
 	fmt.Println("  // select {} // Keep running to serve metrics")
-	
+
 	fmt.Println("\nExample completed successfully!")
 }
 
@@ -122,7 +122,7 @@ func setupLogger() {
 	if os.Getenv("LOG_LEVEL") == "debug" {
 		level = slog.LevelDebug
 	}
-	
+
 	opts := &slog.HandlerOptions{
 		Level: level,
 	}
@@ -137,24 +137,24 @@ func createCustomScorer(apiKey string) scorer.Scorer {
 	cfg = cfg.WithRetry()
 	cfg = cfg.WithMaxConcurrent(5)
 	cfg = cfg.WithTimeout(30 * time.Second)
-	
+
 	// Customize retry strategy
 	cfg.RetryConfig.Strategy = scorer.RetryStrategyExponential
 	cfg.RetryConfig.MaxAttempts = 3
 	cfg.RetryConfig.InitialDelay = 100 * time.Millisecond
 	cfg.RetryConfig.MaxDelay = 2 * time.Second
-	
+
 	// Customize circuit breaker
 	cfg.CircuitBreakerConfig.MaxRequests = 5
 	cfg.CircuitBreakerConfig.Interval = 10 * time.Second
 	cfg.CircuitBreakerConfig.Timeout = 30 * time.Second
-	
+
 	s, err := scorer.NewIntegratedScorer(cfg)
 	if err != nil {
 		slog.Error("Failed to create custom scorer", "error", err)
 		os.Exit(1)
 	}
-	
+
 	return s
 }
 
@@ -201,22 +201,22 @@ func loadTextItems(filename string) ([]scorer.TextItem, error) {
 
 func startMetricsServer() {
 	mux := http.NewServeMux()
-	
+
 	// Metrics endpoint
 	mux.Handle("/metrics", scorer.GetMetricsHandler())
-	
+
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		// Would need access to the scorer instance for real health check
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, `{"status":"healthy","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
 	})
-	
+
 	server := &http.Server{
 		Addr:    ":8080",
 		Handler: mux,
 	}
-	
+
 	if err := server.ListenAndServe(); err != nil {
 		slog.Error("Metrics server failed", "error", err)
 	}

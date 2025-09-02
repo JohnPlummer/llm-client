@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	}
 	logger := slog.New(slog.NewTextHandler(os.Stderr, opts))
 	slog.SetDefault(logger)
-	
+
 	// Run tests
 	code := m.Run()
 	os.Exit(code)
@@ -58,23 +58,23 @@ func TestLoadTextItems(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			items, err := loadTextItems(tt.filename)
-			
+
 			if tt.expectError {
 				if err == nil {
 					t.Errorf("expected error but got none")
 				}
 				return
 			}
-			
+
 			if err != nil {
 				t.Errorf("unexpected error: %v", err)
 				return
 			}
-			
+
 			if len(items) != tt.expectCount {
 				t.Errorf("expected %d items, got %d", tt.expectCount, len(items))
 			}
-			
+
 			// Verify structure of loaded items
 			for i, item := range items {
 				if item.ID == "" {
@@ -96,7 +96,7 @@ func TestSetupLogger(t *testing.T) {
 	// Save original state
 	originalLevel := os.Getenv("LOG_LEVEL")
 	defer os.Setenv("LOG_LEVEL", originalLevel)
-	
+
 	tests := []struct {
 		name     string
 		logLevel string
@@ -110,11 +110,11 @@ func TestSetupLogger(t *testing.T) {
 			logLevel: "debug",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			os.Setenv("LOG_LEVEL", tt.logLevel)
-			
+
 			// Capture log output
 			var buf bytes.Buffer
 			opts := &slog.HandlerOptions{
@@ -122,9 +122,9 @@ func TestSetupLogger(t *testing.T) {
 			}
 			logger := slog.New(slog.NewTextHandler(&buf, opts))
 			slog.SetDefault(logger)
-			
+
 			setupLogger()
-			
+
 			// Test that logger was configured (this is mainly about ensuring no panics)
 			slog.Info("test message")
 			t.Logf("Logger setup completed for level: %s", tt.logLevel)
@@ -135,14 +135,14 @@ func TestSetupLogger(t *testing.T) {
 // TestCreateCustomScorer verifies custom scorer creation
 func TestCreateCustomScorer(t *testing.T) {
 	apiKey := "test-api-key-for-config-validation"
-	
+
 	// This should not panic and should create a valid scorer config
 	defer func() {
 		if r := recover(); r != nil {
 			t.Errorf("createCustomScorer panicked: %v", r)
 		}
 	}()
-	
+
 	scorer := createCustomScorer(apiKey)
 	if scorer == nil {
 		t.Error("createCustomScorer returned nil")
@@ -160,10 +160,10 @@ func TestMainWithoutAPIKey(t *testing.T) {
 			os.Unsetenv("OPENAI_API_KEY")
 		}
 	}()
-	
+
 	// Remove API key
 	os.Unsetenv("OPENAI_API_KEY")
-	
+
 	// Capture exit behavior (this is tricky in Go)
 	// We'll test the logic that would cause exit instead
 	apiKey := os.Getenv("OPENAI_API_KEY")
@@ -179,26 +179,26 @@ func TestExampleItemsStructure(t *testing.T) {
 	// Check if required CSV files exist
 	requiredFiles := []string{
 		"example_items.csv",
-		"example_items_edge_cases.csv", 
+		"example_items_edge_cases.csv",
 	}
-	
+
 	for _, filename := range requiredFiles {
 		t.Run(filename, func(t *testing.T) {
 			if _, err := os.Stat(filename); os.IsNotExist(err) {
 				t.Errorf("Required file %s does not exist", filename)
 				return
 			}
-			
+
 			items, err := loadTextItems(filename)
 			if err != nil {
 				t.Errorf("Failed to load %s: %v", filename, err)
 				return
 			}
-			
+
 			if len(items) == 0 {
 				t.Errorf("File %s contains no items", filename)
 			}
-			
+
 			t.Logf("File %s loaded successfully with %d items", filename, len(items))
 		})
 	}
@@ -216,12 +216,12 @@ func TestConfigurationFiles(t *testing.T) {
 		{"README.md", false},
 		{"custom_prompt.txt", false},
 	}
-	
+
 	for _, file := range files {
 		t.Run(file.name, func(t *testing.T) {
 			_, err := os.Stat(file.name)
 			exists := !os.IsNotExist(err)
-			
+
 			if file.required && !exists {
 				t.Errorf("Required file %s is missing", file.name)
 			} else if exists {
@@ -237,15 +237,15 @@ func TestModuleDependencies(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read go.mod: %v", err)
 	}
-	
+
 	goModContent := string(content)
-	
+
 	// Check essential dependencies
 	requiredDeps := []string{
 		"github.com/JohnPlummer/llm-client",
 		"github.com/joho/godotenv",
 	}
-	
+
 	for _, dep := range requiredDeps {
 		if !strings.Contains(goModContent, dep) {
 			t.Errorf("Missing required dependency: %s", dep)
@@ -253,12 +253,12 @@ func TestModuleDependencies(t *testing.T) {
 			t.Logf("Found required dependency: %s", dep)
 		}
 	}
-	
+
 	// Check go version
 	if !strings.Contains(goModContent, "go 1.23") {
 		t.Error("Expected Go version 1.23.x in go.mod")
 	}
-	
+
 	// Check replace directive for local development
 	if !strings.Contains(goModContent, "replace") {
 		t.Error("Expected replace directive for local development")
@@ -278,7 +278,7 @@ func BenchmarkLoadTextItems(b *testing.B) {
 // BenchmarkCreateCustomScorer benchmarks scorer creation
 func BenchmarkCreateCustomScorer(b *testing.B) {
 	apiKey := "benchmark-api-key"
-	
+
 	for i := 0; i < b.N; i++ {
 		scorer := createCustomScorer(apiKey)
 		if scorer == nil {
@@ -290,7 +290,7 @@ func BenchmarkCreateCustomScorer(b *testing.B) {
 // TestIntegrationReadiness verifies the example is ready for integration tests
 func TestIntegrationReadiness(t *testing.T) {
 	// This test verifies all components needed for integration testing
-	
+
 	t.Run("loadTextItems function", func(t *testing.T) {
 		items, err := loadTextItems("example_items.csv")
 		if err != nil {
@@ -300,14 +300,14 @@ func TestIntegrationReadiness(t *testing.T) {
 			t.Error("loadTextItems returned empty slice")
 		}
 	})
-	
+
 	t.Run("createCustomScorer function", func(t *testing.T) {
 		scorer := createCustomScorer("test-key")
 		if scorer == nil {
 			t.Error("createCustomScorer returned nil")
 		}
 	})
-	
+
 	t.Run("setupLogger function", func(t *testing.T) {
 		defer func() {
 			if r := recover(); r != nil {
@@ -324,12 +324,12 @@ func TestErrorHandling(t *testing.T) {
 		// Create a temporary invalid CSV file
 		tmpFile := "test_invalid.csv"
 		defer os.Remove(tmpFile)
-		
+
 		err := os.WriteFile(tmpFile, []byte("invalid,csv\ncontent"), 0644)
 		if err != nil {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
-		
+
 		items, err := loadTextItems(tmpFile)
 		if err != nil {
 			t.Logf("Correctly handled invalid CSV: %v", err)
@@ -346,19 +346,19 @@ func TestDocumentationConsistency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read main.go: %v", err)
 	}
-	
+
 	mainContent := string(content)
-	
+
 	// Check for expected patterns
 	expectedPatterns := []string{
 		"BuildProductionScorer",
-		"ScoreTextsWithOptions", 
+		"ScoreTextsWithOptions",
 		"GetHealth",
 		"WithModel",
 		"WithPromptTemplate",
 		"LoadTextItems",
 	}
-	
+
 	for _, pattern := range expectedPatterns {
 		if !strings.Contains(mainContent, pattern) {
 			t.Errorf("Expected pattern '%s' not found in main.go", pattern)
@@ -374,12 +374,12 @@ func TestBuildTags(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read main.go: %v", err)
 	}
-	
+
 	// Check for inappropriate build tags that might prevent compilation
 	lines := strings.Split(string(content), "\n")
 	for i, line := range lines {
-		if strings.HasPrefix(strings.TrimSpace(line), "//go:build") || 
-		   strings.HasPrefix(strings.TrimSpace(line), "// +build") {
+		if strings.HasPrefix(strings.TrimSpace(line), "//go:build") ||
+			strings.HasPrefix(strings.TrimSpace(line), "// +build") {
 			t.Errorf("Found build tag at line %d: %s", i+1, line)
 		}
 	}
@@ -392,9 +392,9 @@ func TestVersionConsistency(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to read main.go: %v", err)
 	}
-	
+
 	mainContent := string(content)
-	
+
 	// Look for version strings
 	if strings.Contains(mainContent, "v0.11.0") {
 		t.Log("Found version reference v0.11.0 in main.go")

@@ -29,14 +29,16 @@ func main() {
 		os.Exit(1)
 	}
 
-	fmt.Println("=== LLM-Client v0.11.0 Example ===\n")
+	fmt.Println("=== LLM-Client v0.11.0 Example ===")
+	fmt.Println()
 
 	// Example 1: Production-ready scorer with all resilience features
 	fmt.Println("1. Production Configuration (with resilience patterns)")
 	fmt.Println("   - Circuit breaker: prevents cascade failures")
 	fmt.Println("   - Retry logic: handles transient errors")
 	fmt.Println("   - Prometheus metrics: production monitoring")
-	fmt.Println("   - Health checks: service status monitoring\n")
+	fmt.Println("   - Health checks: service status monitoring")
+	fmt.Println()
 
 	productionScorer, err := scorer.BuildProductionScorer(apiKey)
 	if err != nil {

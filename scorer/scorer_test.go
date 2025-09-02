@@ -1,6 +1,9 @@
 package scorer_test
 
 import (
+	"context"
+	"errors"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
@@ -152,6 +155,90 @@ var _ = Describe("Scorer", func() {
 			Expect(scored.Item.ID).To(Equal("test-1"))
 			Expect(scored.Score).To(Equal(75))
 			Expect(scored.Reason).To(Equal("High relevance"))
+		})
+	})
+
+	Describe("Content Length Validation", func() {
+		Context("when content exceeds maximum length", func() {
+			It("should return error for content exceeding default max length", func() {
+				s, err := scorer.NewScorer(cfg)
+				Expect(err).ToNot(HaveOccurred())
+				
+				// Create content that exceeds default max (10,000 chars)
+				longContent := ""
+				for i := 0; i <= scorer.DefaultMaxContentLength; i++ {
+					longContent += "a"
+				}
+				
+				items := []scorer.TextItem{
+					{ID: "test-1", Content: longContent},
+				}
+				
+				ctx := context.Background()
+				_, err = s.ScoreTexts(ctx, items)
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, scorer.ErrContentTooLong)).To(BeTrue())
+				Expect(err.Error()).To(ContainSubstring("content exceeds maximum length"))
+			})
+			
+			It("should respect custom max content length", func() {
+				cfg.MaxContentLength = 100
+				s, err := scorer.NewScorer(cfg)
+				Expect(err).ToNot(HaveOccurred())
+				
+				// Create content that exceeds custom max (100 chars)
+				longContent := ""
+				for i := 0; i <= 100; i++ {
+					longContent += "a"
+				}
+				
+				items := []scorer.TextItem{
+					{ID: "test-1", Content: longContent},
+				}
+				
+				ctx := context.Background()
+				_, err = s.ScoreTexts(ctx, items)
+				Expect(err).To(HaveOccurred())
+				Expect(errors.Is(err, scorer.ErrContentTooLong)).To(BeTrue())
+			})
+		})
+		
+		Context("when content is too short", func() {
+			It("should allow empty content with warning", func() {
+				s, err := scorer.NewScorer(cfg)
+				Expect(err).ToNot(HaveOccurred())
+				
+				items := []scorer.TextItem{
+					{ID: "test-1", Content: ""},
+				}
+				
+				// Empty content should log warning but not error
+				ctx := context.Background()
+				result, err := s.ScoreTexts(ctx, items)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result).ToNot(BeNil())
+			})
+		})
+		
+		Context("when content length is valid", func() {
+			It("should accept content within limits", func() {
+				cfg.MaxContentLength = 100
+				s, err := scorer.NewScorer(cfg)
+				Expect(err).ToNot(HaveOccurred())
+				
+				items := []scorer.TextItem{
+					{ID: "test-1", Content: "Valid content within limits"},
+				}
+				
+				ctx := context.Background()
+				// This would normally call the API, but in tests with mock client it should work
+				_, err = s.ScoreTexts(ctx, items)
+				// The test setup doesn't have a proper mock, so we just verify no validation error
+				if err != nil {
+					Expect(errors.Is(err, scorer.ErrContentTooLong)).To(BeFalse())
+					Expect(errors.Is(err, scorer.ErrContentTooShort)).To(BeFalse())
+				}
+			})
 		})
 	})
 

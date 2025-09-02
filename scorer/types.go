@@ -48,6 +48,7 @@ type Config struct {
 	Model                string                // OpenAI model to use
 	PromptText           string                // Custom prompt template
 	MaxConcurrent        int                   // Maximum concurrent API calls
+	MaxContentLength     int                   // Maximum content length per text item (0 = use default)
 	EnableCircuitBreaker bool                  // Enable circuit breaker pattern
 	EnableRetry          bool                  // Enable retry with backoff
 	Timeout              time.Duration         // Request timeout
@@ -79,6 +80,10 @@ const (
 	RetryStrategyExponential RetryStrategy = "exponential"
 	RetryStrategyConstant    RetryStrategy = "constant"
 	RetryStrategyFibonacci   RetryStrategy = "fibonacci"
+	
+	// Content length limits
+	DefaultMaxContentLength = 10000 // Default maximum content length in characters
+	MinContentLength        = 1     // Minimum content length to be valid
 )
 
 // OpenAIClient defines the interface for interacting with OpenAI API
@@ -95,9 +100,11 @@ type scorer struct {
 
 // Error definitions
 var (
-	ErrMissingAPIKey = errors.New("OpenAI API key is required")
-	ErrInvalidConfig = errors.New("invalid configuration")
-	ErrEmptyInput    = errors.New("input items cannot be empty")
+	ErrMissingAPIKey     = errors.New("OpenAI API key is required")
+	ErrInvalidConfig     = errors.New("invalid configuration")
+	ErrEmptyInput        = errors.New("input items cannot be empty")
+	ErrContentTooLong    = errors.New("content exceeds maximum length")
+	ErrContentTooShort   = errors.New("content is too short")
 )
 
 // Internal response types for JSON parsing

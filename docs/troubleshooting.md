@@ -235,8 +235,12 @@ Error: failed to create scorer: OpenAI API key is required
 **Solutions:**
 1. **Use test configuration:**
    ```go
-   // In tests, use mock client
-   scorer := scorer.NewWithClient(mockClient)
+   // In tests, use test configuration
+   config := scorer.Config{
+       APIKey: "test-key",
+       // Configure for testing
+   }
+   s, _ := scorer.NewScorer(config)
    ```
 
 2. **Set test environment:**

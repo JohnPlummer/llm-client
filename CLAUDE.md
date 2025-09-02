@@ -218,7 +218,7 @@ type OpenAIClient interface {
 }
 
 // Accept interface in constructors
-func NewWithClient(client OpenAIClient) Scorer
+func NewScorerWithClient(client OpenAIClient) Scorer
 ```
 
 ### Error Handling Philosophy
@@ -248,13 +248,11 @@ if item.ID == "" {
 
 ### Dependency Injection Pattern
 ```go
-// Production: use real client
-cfg := scorer.Config{OpenAIKey: apiKey}
+// Production and testing both use the same constructor:
+cfg := scorer.Config{APIKey: apiKey}
 s, _ := scorer.NewScorer(cfg)
 
-// Testing: use mock client
-mockClient := &mockOpenAIClient{response: testResponse}
-s := scorer.NewWithClient(mockClient)
+// For testing, mock at the OpenAI client level or use test API keys
 ```
 
 ### Embedded Resources
@@ -389,11 +387,9 @@ type TextItem struct {
 // Standard constructor with config
 func New(cfg Config) (Scorer, error)
 
-// Constructor with custom client (for testing)
-func NewWithClient(client OpenAIClient) Scorer
+// Only one constructor available:
+func NewScorer(cfg Config) (Scorer, error)
 
-// Constructor with client and options
-func NewWithClientAndOptions(client OpenAIClient, opts ...func(*scorer)) Scorer
 ```
 
 ### Scoring Methods

@@ -102,7 +102,13 @@ For testing or custom OpenAI client configuration:
 client := openai.NewClient("your-api-key")
 
 // Use dependency injection
-scorer := scorer.NewWithClient(client, scorer.WithPrompt("custom prompt"))
+// Note: Direct client injection is no longer supported
+// Use configuration with custom prompt instead:
+config := scorer.Config{
+    APIKey: apiKey,
+    PromptText: "custom prompt",
+}
+scorer, _ := scorer.NewScorer(config)
 ```
 
 ### With Custom Logging

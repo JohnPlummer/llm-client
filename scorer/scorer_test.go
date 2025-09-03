@@ -1,3 +1,7 @@
+// Package scorer_test provides comprehensive BDD tests for the scorer package using Ginkgo v2.
+// This test suite validates scorer construction, configuration, and data types without requiring
+// actual OpenAI API calls. The tests focus on input validation, configuration defaults,
+// and error handling patterns.
 package scorer_test
 
 import (
@@ -12,16 +16,21 @@ import (
 
 // TestScorer is defined in types_test.go
 
+// Main test suite for the Scorer interface and implementation.
+// Uses Ginkgo BDD style with nested contexts for logical test organization.
 var _ = Describe("Scorer", func() {
 	var cfg scorer.Config
 
+	// Setup fresh config for each test to ensure isolation
 	BeforeEach(func() {
 		cfg = scorer.Config{
 			APIKey: "test-api-key",
 		}
 	})
 
+	// Constructor tests verify NewScorer validation, defaults, and configuration handling
 	Describe("NewScorer", func() {
+		// Input validation tests ensure proper error handling for invalid configurations
 		Context("validation", func() {
 			It("should return error when API key is missing", func() {
 				cfg.APIKey = ""
@@ -43,6 +52,7 @@ var _ = Describe("Scorer", func() {
 			})
 		})
 
+		// Default value tests verify that unspecified config fields get appropriate defaults
 		Context("defaults", func() {
 			It("should set default MaxConcurrent to 1 when not specified", func() {
 				cfg.MaxConcurrent = 0
@@ -69,6 +79,7 @@ var _ = Describe("Scorer", func() {
 			})
 		})
 
+		// Custom prompt validation tests verify template syntax acceptance and warning behavior
 		Context("custom prompts", func() {
 			It("should accept prompt with Go template syntax", func() {
 				cfg.PromptText = "Custom prompt: {{.Content}}"
@@ -101,7 +112,7 @@ var _ = Describe("Scorer", func() {
 				cfg.PromptText = "Custom: %s"
 				cfg.EnableCircuitBreaker = true
 				cfg.EnableRetry = true
-				
+
 				s, err := scorer.NewScorer(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(s).ToNot(BeNil())
@@ -109,6 +120,7 @@ var _ = Describe("Scorer", func() {
 		})
 	})
 
+	// Functional options pattern tests verify option constructors return valid instances
 	Describe("ScoringOption functions", func() {
 		It("should provide WithModel option", func() {
 			opt := scorer.WithModel("gpt-4")
@@ -128,6 +140,7 @@ var _ = Describe("Scorer", func() {
 		})
 	})
 
+	// Data type tests verify correct construction and field access for core types
 	Describe("TextItem and ScoredItem types", func() {
 		It("should create valid TextItem", func() {
 			item := scorer.TextItem{
@@ -158,84 +171,88 @@ var _ = Describe("Scorer", func() {
 		})
 	})
 
+	// Content validation tests verify length limits and error handling for text content
 	Describe("Content Length Validation", func() {
+		// Maximum length tests verify ErrContentTooLong is returned for oversized content
 		Context("when content exceeds maximum length", func() {
 			It("should return error for content exceeding default max length", func() {
 				s, err := scorer.NewScorer(cfg)
 				Expect(err).ToNot(HaveOccurred())
-				
+
 				// Create content that exceeds default max (10,000 chars)
 				longContent := ""
 				for i := 0; i <= scorer.DefaultMaxContentLength; i++ {
 					longContent += "a"
 				}
-				
+
 				items := []scorer.TextItem{
 					{ID: "test-1", Content: longContent},
 				}
-				
+
 				ctx := context.Background()
 				_, err = s.ScoreTexts(ctx, items)
 				Expect(err).To(HaveOccurred())
 				Expect(errors.Is(err, scorer.ErrContentTooLong)).To(BeTrue())
 				Expect(err.Error()).To(ContainSubstring("content exceeds maximum length"))
 			})
-			
+
 			It("should respect custom max content length", func() {
 				cfg.MaxContentLength = 100
 				s, err := scorer.NewScorer(cfg)
 				Expect(err).ToNot(HaveOccurred())
-				
+
 				// Create content that exceeds custom max (100 chars)
 				longContent := ""
 				for i := 0; i <= 100; i++ {
 					longContent += "a"
 				}
-				
+
 				items := []scorer.TextItem{
 					{ID: "test-1", Content: longContent},
 				}
-				
+
 				ctx := context.Background()
 				_, err = s.ScoreTexts(ctx, items)
 				Expect(err).To(HaveOccurred())
 				Expect(errors.Is(err, scorer.ErrContentTooLong)).To(BeTrue())
 			})
 		})
-		
+
+		// Minimum length tests verify empty content handling and warning behavior
 		Context("when content is too short", func() {
 			It("should validate empty content correctly", func() {
 				// This test verifies that empty content is accepted with a warning
 				// The actual API call test would require mocking the OpenAI client
 				// For now, we just verify the validation logic doesn't reject empty content
-				
+
 				s, err := scorer.NewScorer(cfg)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(s).ToNot(BeNil())
-				
+
 				// Empty content should be allowed through validation
 				// (warning is logged but no error returned)
 				items := []scorer.TextItem{
 					{ID: "test-1", Content: ""},
 				}
-				
+
 				// Just verify the scorer was created successfully
 				// Actual scoring would require mock client
 				Expect(len(items)).To(Equal(1))
 				Expect(items[0].Content).To(Equal(""))
 			})
 		})
-		
+
+		// Valid length tests verify content within limits passes validation
 		Context("when content length is valid", func() {
 			It("should accept content within limits", func() {
 				cfg.MaxContentLength = 100
 				s, err := scorer.NewScorer(cfg)
 				Expect(err).ToNot(HaveOccurred())
-				
+
 				items := []scorer.TextItem{
 					{ID: "test-1", Content: "Valid content within limits"},
 				}
-				
+
 				ctx := context.Background()
 				// This would normally call the API, but in tests with mock client it should work
 				_, err = s.ScoreTexts(ctx, items)
@@ -248,6 +265,7 @@ var _ = Describe("Scorer", func() {
 		})
 	})
 
+	// Health status tests verify HealthStatus type construction and field behavior
 	Describe("HealthStatus", func() {
 		It("should represent healthy state", func() {
 			status := scorer.HealthStatus{

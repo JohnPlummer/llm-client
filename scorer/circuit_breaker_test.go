@@ -23,7 +23,7 @@ var _ = Describe("CircuitBreaker", func() {
 	BeforeEach(func() {
 		ctx = context.Background()
 		mockAPI = &mockAPIClient{}
-		
+
 		config := scorer.CircuitBreakerConfig{
 			MaxRequests: 3,
 			Interval:    10 * time.Second,
@@ -33,7 +33,7 @@ var _ = Describe("CircuitBreaker", func() {
 				return counts.ConsecutiveFailures >= 3
 			},
 		}
-		
+
 		cb = scorer.NewCircuitBreakerWrapper(mockAPI, &config)
 	})
 
@@ -181,7 +181,7 @@ var _ = Describe("CircuitBreaker", func() {
 				},
 			}
 			cb = scorer.NewCircuitBreakerWrapper(mockAPI, &config)
-			
+
 			// Trip it
 			for i := 0; i < 3; i++ {
 				cb.CreateChatCompletion(ctx, openai.ChatCompletionRequest{})
@@ -202,7 +202,7 @@ var _ = Describe("CircuitBreaker", func() {
 			resp, err := cb.CreateChatCompletion(ctx, openai.ChatCompletionRequest{})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(resp.Choices[0].Message.Content).To(Equal("recovered"))
-			
+
 			// Circuit should be closed again
 			Eventually(func() gobreaker.State {
 				return cb.State()
@@ -261,7 +261,7 @@ var _ = Describe("CircuitBreaker", func() {
 	Describe("State Change Callbacks", func() {
 		It("should call state change callback", func() {
 			var stateChanges []string
-			
+
 			config := scorer.CircuitBreakerConfig{
 				MaxRequests: 3,
 				Interval:    10 * time.Second,
@@ -270,11 +270,11 @@ var _ = Describe("CircuitBreaker", func() {
 					return counts.ConsecutiveFailures >= 3
 				},
 				OnStateChange: func(name string, from, to gobreaker.State) {
-					stateChanges = append(stateChanges, 
+					stateChanges = append(stateChanges,
 						from.String()+"->"+to.String())
 				},
 			}
-			
+
 			cb = scorer.NewCircuitBreakerWrapper(mockAPI, &config)
 
 			// Trip the circuit
@@ -291,16 +291,16 @@ var _ = Describe("CircuitBreaker", func() {
 		It("should classify errors correctly", func() {
 			// Rate limit - should not trip
 			Expect(scorer.ShouldTripCircuit(&openai.APIError{HTTPStatusCode: 429})).To(BeFalse())
-			
+
 			// Server error - should trip
 			Expect(scorer.ShouldTripCircuit(&openai.APIError{HTTPStatusCode: 500})).To(BeTrue())
-			
+
 			// Auth error - should trip
 			Expect(scorer.ShouldTripCircuit(&openai.APIError{HTTPStatusCode: 401})).To(BeTrue())
-			
+
 			// Timeout - should not trip
 			Expect(scorer.ShouldTripCircuit(context.DeadlineExceeded)).To(BeFalse())
-			
+
 			// Unknown error - should trip
 			Expect(scorer.ShouldTripCircuit(errors.New("unknown"))).To(BeTrue())
 		})

@@ -46,7 +46,7 @@ func NewIntegratedScorer(cfg Config) (Scorer, error) {
 		slog.Info("Enabling circuit breaker",
 			"max_requests", cfg.CircuitBreakerConfig.MaxRequests,
 			"timeout", cfg.CircuitBreakerConfig.Timeout)
-		
+
 		// Add metrics callback to circuit breaker
 		if cfg.CircuitBreakerConfig.OnStateChange == nil {
 			cfg.CircuitBreakerConfig.OnStateChange = func(name string, from, to gobreaker.State) {
@@ -57,7 +57,7 @@ func NewIntegratedScorer(cfg Config) (Scorer, error) {
 				}
 			}
 		}
-		
+
 		scorer = NewCircuitBreakerScorer(scorer, cfg.CircuitBreakerConfig)
 	}
 
@@ -85,10 +85,10 @@ func (s *IntegratedScorer) ScoreTexts(ctx context.Context, items []TextItem, opt
 // ScoreTextsWithOptions implements TextScorer with metrics and monitoring
 func (s *IntegratedScorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
 	start := time.Now()
-	
+
 	// Record batch size
 	s.metrics.RecordBatchSize(len(items))
-	
+
 	// Track concurrent requests
 	s.metrics.RecordConcurrentRequests(1)
 	defer s.metrics.RecordConcurrentRequests(-1)
@@ -107,32 +107,32 @@ func (s *IntegratedScorer) ScoreTextsWithOptions(ctx context.Context, items []Te
 
 	// Call underlying scorer
 	results, err := s.baseScorer.ScoreTextsWithOptions(ctx, items, opts...)
-	
+
 	// Record metrics
 	duration := time.Since(start).Seconds()
 	s.metrics.RecordRequestDuration(duration, model)
-	
+
 	if err != nil {
 		s.metrics.RecordRequest("error", model)
 		s.metrics.RecordError(classifyError(err))
 		return nil, err
 	}
-	
+
 	s.metrics.RecordRequest("success", model)
 	s.metrics.RecordItemsScored(len(results))
-	
+
 	// Record score distribution
 	for _, result := range results {
 		s.metrics.RecordScore(result.Score)
 	}
-	
+
 	return results, nil
 }
 
 // GetHealth returns comprehensive health status
 func (s *IntegratedScorer) GetHealth(ctx context.Context) HealthStatus {
 	baseHealth := s.baseScorer.GetHealth(ctx)
-	
+
 	// Add integration-specific health checks
 	baseHealth.Details["integration"] = map[string]interface{}{
 		"circuit_breaker_enabled": s.config.EnableCircuitBreaker,
@@ -141,7 +141,7 @@ func (s *IntegratedScorer) GetHealth(ctx context.Context) HealthStatus {
 		"model":                   s.config.Model,
 		"max_concurrent":          s.config.MaxConcurrent,
 	}
-	
+
 	return baseHealth
 }
 
@@ -175,7 +175,7 @@ func classifyError(err error) string {
 	if err == nil {
 		return "none"
 	}
-	
+
 	var apiErr *openai.APIError
 	if errors.As(err, &apiErr) {
 		switch {
@@ -189,23 +189,23 @@ func classifyError(err error) string {
 			return "api_error"
 		}
 	}
-	
+
 	if errors.Is(err, context.DeadlineExceeded) {
 		return "timeout"
 	}
-	
+
 	if errors.Is(err, context.Canceled) {
 		return "cancelled"
 	}
-	
+
 	if errors.Is(err, gobreaker.ErrOpenState) {
 		return "circuit_open"
 	}
-	
+
 	if errors.Is(err, gobreaker.ErrTooManyRequests) {
 		return "circuit_half_open"
 	}
-	
+
 	return "unknown"
 }
 
@@ -229,12 +229,12 @@ func (m *metricsScorer) ScoreTexts(ctx context.Context, items []TextItem, opts .
 func (m *metricsScorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error) {
 	start := time.Now()
 	m.metrics.RecordBatchSize(len(items))
-	
+
 	results, err := m.scorer.ScoreTextsWithOptions(ctx, items, opts...)
-	
+
 	duration := time.Since(start).Seconds()
 	m.metrics.RecordRequestDuration(duration, "unknown")
-	
+
 	if err != nil {
 		m.metrics.RecordError(classifyError(err))
 	} else {
@@ -243,7 +243,7 @@ func (m *metricsScorer) ScoreTextsWithOptions(ctx context.Context, items []TextI
 			m.metrics.RecordScore(result.Score)
 		}
 	}
-	
+
 	return results, err
 }
 

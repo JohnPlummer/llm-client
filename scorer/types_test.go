@@ -253,7 +253,7 @@ var _ = Describe("Types", func() {
 
 			templateOption := scorer.WithPromptTemplate("Custom template")
 			Expect(templateOption).ToNot(BeNil())
-			
+
 			contextOption := scorer.WithExtraContext(map[string]interface{}{"key": "value"})
 			Expect(contextOption).ToNot(BeNil())
 		})
@@ -269,15 +269,15 @@ var _ = Describe("Types", func() {
 				Timeout:              30 * time.Second,
 				MaxConcurrent:        5,
 				CircuitBreakerConfig: &scorer.CircuitBreakerConfig{
-					MaxRequests:     10,
-					Interval:        time.Minute,
-					Timeout:         30 * time.Second,
-					ReadyToTrip:     nil,
-					OnStateChange:   nil,
+					MaxRequests:   10,
+					Interval:      time.Minute,
+					Timeout:       30 * time.Second,
+					ReadyToTrip:   nil,
+					OnStateChange: nil,
 				},
 				RetryConfig: &scorer.RetryConfig{
-					MaxAttempts: 3,
-					Strategy:    scorer.RetryStrategyExponential,
+					MaxAttempts:  3,
+					Strategy:     scorer.RetryStrategyExponential,
 					InitialDelay: time.Second,
 					MaxDelay:     30 * time.Second,
 				},

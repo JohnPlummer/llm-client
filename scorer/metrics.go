@@ -1,3 +1,5 @@
+// Package scorer provides comprehensive Prometheus metrics for monitoring text scoring operations.
+// This metrics system tracks performance, errors, and usage patterns across the scoring pipeline.
 package scorer
 
 import (
@@ -8,8 +10,11 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
+// Prometheus metrics for monitoring all aspects of text scoring operations.
+// These metrics enable comprehensive observability into performance, reliability, and usage patterns.
+// Metrics are organized into functional groups: requests, batching, errors, resilience, and API interactions.
 var (
-	// Request metrics
+	// Core request metrics track overall system usage and performance
 	requestsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "text_scorer_requests_total",
@@ -27,7 +32,7 @@ var (
 		[]string{"model"},
 	)
 
-	// Batch metrics
+	// Batch processing metrics monitor efficiency of batch operations
 	batchSize = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "text_scorer_batch_size",
@@ -43,7 +48,7 @@ var (
 		},
 	)
 
-	// Error metrics
+	// Error tracking provides insights into failure patterns and reliability
 	errorsTotal = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "text_scorer_errors_total",
@@ -52,7 +57,7 @@ var (
 		[]string{"error_type"},
 	)
 
-	// Circuit breaker metrics
+	// Circuit breaker metrics monitor system resilience and fault tolerance
 	circuitBreakerState = promauto.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "text_scorer_circuit_breaker_state",
@@ -69,7 +74,7 @@ var (
 		[]string{"name"},
 	)
 
-	// Retry metrics
+	// Retry mechanism metrics track system robustness under transient failures
 	retryAttempts = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "text_scorer_retry_attempts",
@@ -86,7 +91,7 @@ var (
 		[]string{"reason"},
 	)
 
-	// API metrics
+	// OpenAI API interaction metrics monitor external service performance and costs
 	apiCallDuration = promauto.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "text_scorer_api_call_duration_seconds",
@@ -96,6 +101,7 @@ var (
 		[]string{"endpoint", "status"},
 	)
 
+	// Token usage tracking enables cost monitoring and optimization
 	apiTokensUsed = promauto.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: "text_scorer_api_tokens_used_total",
@@ -104,7 +110,7 @@ var (
 		[]string{"type"}, // prompt, completion, total
 	)
 
-	// Score distribution
+	// Score distribution analysis provides insights into scoring patterns and quality
 	scoreDistribution = promauto.NewHistogram(
 		prometheus.HistogramOpts{
 			Name:    "text_scorer_score_distribution",
@@ -113,7 +119,7 @@ var (
 		},
 	)
 
-	// Concurrent processing metrics
+	// Concurrency metrics monitor system load and resource utilization
 	concurrentRequests = promauto.NewGauge(
 		prometheus.GaugeOpts{
 			Name: "text_scorer_concurrent_requests",
@@ -129,12 +135,15 @@ var (
 	)
 )
 
-// MetricsRecorder provides methods to record metrics
+// MetricsRecorder provides methods to record metrics with optional enablement control.
+// When disabled, all recording operations become no-ops for zero performance impact.
+// This design enables metrics collection to be toggled without code changes.
 type MetricsRecorder struct {
 	enabled bool
 }
 
-// NewMetricsRecorder creates a new metrics recorder
+// NewMetricsRecorder creates a new metrics recorder with the specified enablement state.
+// Production systems typically enable metrics, while test environments may disable them.
 func NewMetricsRecorder(enabled bool) *MetricsRecorder {
 	return &MetricsRecorder{enabled: enabled}
 }
@@ -179,7 +188,8 @@ func (m *MetricsRecorder) RecordError(errorType string) {
 	errorsTotal.WithLabelValues(errorType).Inc()
 }
 
-// RecordCircuitBreakerState records circuit breaker state
+// RecordCircuitBreakerState records circuit breaker state transitions.
+// State values: 0=closed (normal), 1=half-open (testing), 2=open (failing).
 func (m *MetricsRecorder) RecordCircuitBreakerState(name string, state int) {
 	if !m.enabled {
 		return
@@ -187,7 +197,8 @@ func (m *MetricsRecorder) RecordCircuitBreakerState(name string, state int) {
 	circuitBreakerState.WithLabelValues(name).Set(float64(state))
 }
 
-// RecordCircuitBreakerTrip records a circuit breaker trip
+// RecordCircuitBreakerTrip records when a circuit breaker transitions to open state.
+// Frequent trips indicate persistent downstream service issues requiring investigation.
 func (m *MetricsRecorder) RecordCircuitBreakerTrip(name string) {
 	if !m.enabled {
 		return
@@ -219,7 +230,8 @@ func (m *MetricsRecorder) RecordAPICall(endpoint string, status string, seconds 
 	apiCallDuration.WithLabelValues(endpoint, status).Observe(seconds)
 }
 
-// RecordTokensUsed records tokens used
+// RecordTokensUsed records API token consumption for cost tracking and optimization.
+// TokenType should be "prompt", "completion", or "total" to categorize usage patterns.
 func (m *MetricsRecorder) RecordTokensUsed(tokenType string, count int) {
 	if !m.enabled {
 		return
@@ -227,7 +239,8 @@ func (m *MetricsRecorder) RecordTokensUsed(tokenType string, count int) {
 	apiTokensUsed.WithLabelValues(tokenType).Add(float64(count))
 }
 
-// RecordScore records a score
+// RecordScore records individual score values to analyze scoring distribution patterns.
+// Score distribution analysis helps identify bias, quality issues, and prompt effectiveness.
 func (m *MetricsRecorder) RecordScore(score int) {
 	if !m.enabled {
 		return
@@ -251,12 +264,16 @@ func (m *MetricsRecorder) RecordQueuedRequests(delta float64) {
 	queuedRequests.Add(delta)
 }
 
-// GetMetricsHandler returns an HTTP handler for Prometheus metrics
+// GetMetricsHandler returns an HTTP handler for exposing Prometheus metrics.
+// Mount this handler at /metrics to enable scraping by Prometheus servers.
+// The handler serves metrics in the standard Prometheus text format.
 func GetMetricsHandler() http.Handler {
 	return promhttp.Handler()
 }
 
-// RegisterCustomMetrics allows registration of custom metrics
+// RegisterCustomMetrics allows registration of application-specific metrics beyond the standard set.
+// Use this for domain-specific measurements that complement the built-in metrics.
+// Returns error if metric name conflicts with existing registrations.
 func RegisterCustomMetrics(collector prometheus.Collector) error {
 	return prometheus.Register(collector)
 }

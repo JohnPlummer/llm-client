@@ -27,8 +27,8 @@ func NewCircuitBreakerWrapper(client OpenAIClient, config *CircuitBreakerConfig)
 			Timeout:     30 * time.Second,
 			ReadyToTrip: func(counts gobreaker.Counts) bool {
 				failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
-				return counts.ConsecutiveFailures >= 5 || 
-					   (counts.Requests >= 10 && failureRatio > 0.6)
+				return counts.ConsecutiveFailures >= 5 ||
+					(counts.Requests >= 10 && failureRatio > 0.6)
 			},
 		}
 	}
@@ -44,7 +44,7 @@ func NewCircuitBreakerWrapper(client OpenAIClient, config *CircuitBreakerConfig)
 				"name", name,
 				"from", from.String(),
 				"to", to.String())
-			
+
 			if config.OnStateChange != nil {
 				config.OnStateChange(name, from, to)
 			}
@@ -53,7 +53,7 @@ func NewCircuitBreakerWrapper(client OpenAIClient, config *CircuitBreakerConfig)
 			if err == nil {
 				return true
 			}
-			
+
 			// Don't count rate limits and timeouts as circuit breaker failures
 			// These are temporary and should be retried
 			return !ShouldTripCircuit(err)
@@ -106,10 +106,10 @@ func (w *CircuitBreakerWrapper) Counts() gobreaker.Counts {
 func (w *CircuitBreakerWrapper) GetHealth() HealthStatus {
 	state := w.cb.State()
 	counts := w.cb.Counts()
-	
+
 	var healthy bool
 	var status string
-	
+
 	switch state {
 	case gobreaker.StateClosed:
 		healthy = true
@@ -125,11 +125,11 @@ func (w *CircuitBreakerWrapper) GetHealth() HealthStatus {
 	}
 
 	details := map[string]interface{}{
-		"state":                state.String(),
-		"requests":             counts.Requests,
-		"total_successes":      counts.TotalSuccesses,
-		"total_failures":       counts.TotalFailures,
-		"consecutive_failures": counts.ConsecutiveFailures,
+		"state":                 state.String(),
+		"requests":              counts.Requests,
+		"total_successes":       counts.TotalSuccesses,
+		"total_failures":        counts.TotalFailures,
+		"consecutive_failures":  counts.ConsecutiveFailures,
 		"consecutive_successes": counts.ConsecutiveSuccesses,
 	}
 
@@ -201,8 +201,8 @@ func NewCircuitBreakerScorer(scorer Scorer, config *CircuitBreakerConfig) Scorer
 			Timeout:     30 * time.Second,
 			ReadyToTrip: func(counts gobreaker.Counts) bool {
 				failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
-				return counts.ConsecutiveFailures >= 5 || 
-					   (counts.Requests >= 10 && failureRatio > 0.6)
+				return counts.ConsecutiveFailures >= 5 ||
+					(counts.Requests >= 10 && failureRatio > 0.6)
 			},
 		}
 	}
@@ -218,7 +218,7 @@ func NewCircuitBreakerScorer(scorer Scorer, config *CircuitBreakerConfig) Scorer
 				"name", name,
 				"from", from.String(),
 				"to", to.String())
-			
+
 			if config.OnStateChange != nil {
 				config.OnStateChange(name, from, to)
 			}
@@ -258,14 +258,14 @@ func (s *circuitBreakerScorer) ScoreTextsWithOptions(ctx context.Context, items 
 func (s *circuitBreakerScorer) GetHealth(ctx context.Context) HealthStatus {
 	state := s.cb.State()
 	counts := s.cb.Counts()
-	
+
 	baseHealth := s.scorer.GetHealth(ctx)
-	
+
 	// Merge circuit breaker status with base health
 	baseHealth.Details["circuit_breaker_state"] = state.String()
 	baseHealth.Details["circuit_breaker_requests"] = counts.Requests
 	baseHealth.Details["circuit_breaker_failures"] = counts.TotalFailures
-	
+
 	// Override health if circuit is open
 	if state == gobreaker.StateOpen {
 		baseHealth.Healthy = false
@@ -273,6 +273,6 @@ func (s *circuitBreakerScorer) GetHealth(ctx context.Context) HealthStatus {
 	} else if state == gobreaker.StateHalfOpen {
 		baseHealth.Status = fmt.Sprintf("degraded (%s)", baseHealth.Status)
 	}
-	
+
 	return baseHealth
 }

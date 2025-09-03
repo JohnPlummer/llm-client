@@ -32,15 +32,15 @@ func NewScorer(cfg Config) (Scorer, error) {
 	if initError != nil {
 		return nil, initError
 	}
-	
+
 	if batchPromptError != nil {
 		return nil, batchPromptError
 	}
-	
+
 	if cfg.APIKey == "" {
 		return nil, ErrMissingAPIKey
 	}
-	
+
 	// Validate prompt template if provided
 	if cfg.PromptText != "" {
 		// Check for either Go template syntax or sprintf placeholder
@@ -51,11 +51,11 @@ func NewScorer(cfg Config) (Scorer, error) {
 				"prompt_preview", cfg.PromptText[:min(50, len(cfg.PromptText))])
 		}
 	}
-	
+
 	if cfg.MaxConcurrent < 0 {
 		return nil, errors.New("MaxConcurrent must be non-negative")
 	}
-	
+
 	// Set default MaxConcurrent if not specified
 	if cfg.MaxConcurrent == 0 {
 		cfg.MaxConcurrent = 1
@@ -94,17 +94,17 @@ func (s *scorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, op
 	if items == nil {
 		return nil, errors.New("items cannot be nil")
 	}
-	
+
 	if len(items) == 0 {
 		return []ScoredItem{}, nil
 	}
-	
+
 	// Determine max content length
 	maxContentLength := s.config.MaxContentLength
 	if maxContentLength == 0 {
 		maxContentLength = DefaultMaxContentLength
 	}
-	
+
 	// Validate items
 	for i, item := range items {
 		if item.ID == "" {
@@ -113,15 +113,15 @@ func (s *scorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, op
 		if item.Content == "" {
 			slog.Warn("Item has empty content", "item_id", item.ID, "index", i)
 		}
-		
+
 		// Validate content length
 		contentLength := len(item.Content)
 		if contentLength > maxContentLength {
-			return nil, fmt.Errorf("item %s at index %d: %w (length: %d, max: %d)", 
+			return nil, fmt.Errorf("item %s at index %d: %w (length: %d, max: %d)",
 				item.ID, i, ErrContentTooLong, contentLength, maxContentLength)
 		}
 		if contentLength < MinContentLength && contentLength > 0 {
-			return nil, fmt.Errorf("item %s at index %d: %w (length: %d, min: %d)", 
+			return nil, fmt.Errorf("item %s at index %d: %w (length: %d, min: %d)",
 				item.ID, i, ErrContentTooShort, contentLength, MinContentLength)
 		}
 	}
@@ -130,7 +130,7 @@ func (s *scorer) ScoreTextsWithOptions(ctx context.Context, items []TextItem, op
 	options := &scoringOptions{
 		model: s.config.Model,
 	}
-	
+
 	// Apply provided options
 	for _, opt := range opts {
 		opt(options)
@@ -156,20 +156,20 @@ func (s *scorer) GetHealth(ctx context.Context) HealthStatus {
 	testItem := []TextItem{
 		{ID: "health-check", Content: "test"},
 	}
-	
+
 	_, err := s.ScoreTexts(ctx, testItem)
 	if err != nil {
 		return HealthStatus{
 			Healthy: false,
 			Status:  "unhealthy",
 			Details: map[string]interface{}{
-				"error":    err.Error(),
-				"api_key":  s.config.APIKey != "",
-				"model":    s.config.Model,
+				"error":   err.Error(),
+				"api_key": s.config.APIKey != "",
+				"model":   s.config.Model,
 			},
 		}
 	}
-	
+
 	return HealthStatus{
 		Healthy: true,
 		Status:  "healthy",
@@ -259,4 +259,3 @@ func min(a, b int) int {
 	}
 	return b
 }
-

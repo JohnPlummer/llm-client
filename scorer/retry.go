@@ -27,7 +27,7 @@ func NewRetryWrapper(client OpenAIClient, config *RetryConfig) *RetryWrapper {
 			MaxDelay:     30 * time.Second,
 		}
 	}
-	
+
 	return &RetryWrapper{
 		client: client,
 		config: config,
@@ -38,12 +38,12 @@ func NewRetryWrapper(client OpenAIClient, config *RetryConfig) *RetryWrapper {
 func (w *RetryWrapper) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
 	var lastErr error
 	var attempts int
-	
+
 	backoff := w.getBackoffStrategy()
-	
+
 	for {
 		attempts++
-		
+
 		// Try the request
 		resp, err := w.client.CreateChatCompletion(ctx, req)
 		if err == nil {
@@ -53,9 +53,9 @@ func (w *RetryWrapper) CreateChatCompletion(ctx context.Context, req openai.Chat
 			}
 			return resp, nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if error is retryable
 		if !IsRetryableError(err) {
 			slog.Debug("Non-retryable error, giving up",
@@ -63,7 +63,7 @@ func (w *RetryWrapper) CreateChatCompletion(ctx context.Context, req openai.Chat
 				"attempts", attempts)
 			return openai.ChatCompletionResponse{}, err
 		}
-		
+
 		// Check if we've exceeded max attempts
 		if attempts >= w.config.MaxAttempts {
 			slog.Warn("Max retry attempts reached",
@@ -71,7 +71,7 @@ func (w *RetryWrapper) CreateChatCompletion(ctx context.Context, req openai.Chat
 				"error", lastErr)
 			return openai.ChatCompletionResponse{}, lastErr
 		}
-		
+
 		// Calculate next delay
 		delay, stop := backoff.Next()
 		if stop {
@@ -80,12 +80,12 @@ func (w *RetryWrapper) CreateChatCompletion(ctx context.Context, req openai.Chat
 				"error", lastErr)
 			return openai.ChatCompletionResponse{}, lastErr
 		}
-		
+
 		slog.Debug("Retrying request after delay",
 			"attempt", attempts,
 			"delay", delay,
 			"error", err)
-		
+
 		// Wait with context awareness
 		select {
 		case <-ctx.Done():
@@ -108,7 +108,7 @@ func (w *RetryWrapper) getBackoffStrategy() retry.Backoff {
 				return w.config.InitialDelay + jitter, false
 			}),
 		)
-		
+
 	case RetryStrategyFibonacci:
 		return retry.WithMaxRetries(
 			uint64(w.config.MaxAttempts),
@@ -120,7 +120,7 @@ func (w *RetryWrapper) getBackoffStrategy() retry.Backoff {
 				),
 			),
 		)
-		
+
 	case RetryStrategyExponential:
 		fallthrough
 	default:
@@ -142,7 +142,7 @@ func IsRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	// Check for OpenAI API errors
 	var apiErr *openai.APIError
 	if errors.As(err, &apiErr) {
@@ -162,17 +162,17 @@ func IsRetryableError(err error) bool {
 			return false
 		}
 	}
-	
+
 	// Timeout errors are retryable
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true
 	}
-	
+
 	// Cancelled context is not retryable
 	if errors.Is(err, context.Canceled) {
 		return false
 	}
-	
+
 	// Network errors might be retryable
 	// For now, consider unknown errors as retryable
 	return true
@@ -194,7 +194,7 @@ func NewRetryScorer(scorer Scorer, config *RetryConfig) Scorer {
 			MaxDelay:     30 * time.Second,
 		}
 	}
-	
+
 	return &retryScorer{
 		scorer: scorer,
 		config: config,
@@ -225,13 +225,13 @@ func (s *retryScorer) GetHealth(ctx context.Context) HealthStatus {
 func (s *retryScorer) retryOperation(ctx context.Context, operation func() ([]ScoredItem, error)) ([]ScoredItem, error) {
 	var lastErr error
 	var attempts int
-	
+
 	wrapper := &RetryWrapper{config: s.config}
 	backoff := wrapper.getBackoffStrategy()
-	
+
 	for {
 		attempts++
-		
+
 		// Try the operation
 		result, err := operation()
 		if err == nil {
@@ -241,9 +241,9 @@ func (s *retryScorer) retryOperation(ctx context.Context, operation func() ([]Sc
 			}
 			return result, nil
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if error is retryable
 		if !IsRetryableError(err) {
 			slog.Debug("Non-retryable error in text scoring",
@@ -251,7 +251,7 @@ func (s *retryScorer) retryOperation(ctx context.Context, operation func() ([]Sc
 				"attempts", attempts)
 			return nil, err
 		}
-		
+
 		// Check if we've exceeded max attempts
 		if attempts >= s.config.MaxAttempts {
 			slog.Warn("Max retry attempts reached for text scoring",
@@ -259,18 +259,18 @@ func (s *retryScorer) retryOperation(ctx context.Context, operation func() ([]Sc
 				"error", lastErr)
 			return nil, lastErr
 		}
-		
+
 		// Calculate next delay
 		delay, stop := backoff.Next()
 		if stop {
 			return nil, lastErr
 		}
-		
+
 		slog.Debug("Retrying text scoring after delay",
 			"attempt", attempts,
 			"delay", delay,
 			"error", err)
-		
+
 		// Wait with context awareness
 		select {
 		case <-ctx.Done():
@@ -285,10 +285,10 @@ func (s *retryScorer) retryOperation(ctx context.Context, operation func() ([]Sc
 func CombineWithCircuitBreaker(scorer Scorer, retryConfig *RetryConfig, cbConfig *CircuitBreakerConfig) Scorer {
 	// First wrap with retry (inner layer)
 	withRetry := NewRetryScorer(scorer, retryConfig)
-	
+
 	// Then wrap with circuit breaker (outer layer)
 	withCB := NewCircuitBreakerScorer(withRetry, cbConfig)
-	
+
 	return withCB
 }
 
@@ -297,13 +297,13 @@ func CalculateRetryDelay(attempt int, config *RetryConfig) time.Duration {
 	if config == nil {
 		return 0
 	}
-	
+
 	var delay time.Duration
-	
+
 	switch config.Strategy {
 	case RetryStrategyConstant:
 		delay = config.InitialDelay
-		
+
 	case RetryStrategyFibonacci:
 		// Calculate fibonacci number
 		a, b := config.InitialDelay, config.InitialDelay
@@ -311,7 +311,7 @@ func CalculateRetryDelay(attempt int, config *RetryConfig) time.Duration {
 			a, b = b, a+b
 		}
 		delay = b
-		
+
 	case RetryStrategyExponential:
 		fallthrough
 	default:
@@ -319,12 +319,12 @@ func CalculateRetryDelay(attempt int, config *RetryConfig) time.Duration {
 		multiplier := 1 << (attempt - 1)
 		delay = time.Duration(multiplier) * config.InitialDelay
 	}
-	
+
 	// Cap at MaxDelay
 	if delay > config.MaxDelay {
 		delay = config.MaxDelay
 	}
-	
+
 	// Add jitter (±10%)
 	jitter := time.Duration(rand.Int63n(int64(delay / 10)))
 	if rand.Intn(2) == 0 {
@@ -332,7 +332,7 @@ func CalculateRetryDelay(attempt int, config *RetryConfig) time.Duration {
 	} else {
 		delay -= jitter
 	}
-	
+
 	return delay
 }
 

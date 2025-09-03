@@ -1,3 +1,7 @@
+// Package scorer_test provides integration tests for the scorer package,
+// focusing on end-to-end scenarios with resilience patterns like circuit breakers
+// and retry mechanisms. These tests validate the integration between different
+// scorer components and their behavior under various failure conditions.
 package scorer_test
 
 import (
@@ -59,6 +63,7 @@ var _ = Describe("Integration", func() {
 	})
 
 	Describe("Production Configuration", func() {
+		// Tests production-ready scorer creation with all resilience patterns enabled
 		It("should create production-ready scorer", func() {
 			s, err := scorer.BuildProductionScorer("test-api-key")
 			Expect(err).ToNot(HaveOccurred())
@@ -66,7 +71,7 @@ var _ = Describe("Integration", func() {
 
 			health := s.GetHealth(ctx)
 			Expect(health.Details["integration"]).ToNot(BeNil())
-			
+
 			integration := health.Details["integration"].(map[string]interface{})
 			Expect(integration["circuit_breaker_enabled"]).To(BeTrue())
 			Expect(integration["retry_enabled"]).To(BeTrue())
@@ -93,6 +98,8 @@ var _ = Describe("Integration", func() {
 		})
 
 		Context("with retry and circuit breaker", func() {
+			// Tests the interaction between retry and circuit breaker patterns,
+			// ensuring retries are exhausted before circuit breaker trips
 			It("should retry transient errors before tripping circuit", func() {
 				// Setup: first 2 calls fail with retryable error, then succeed
 				mockClient.errors = []error{
@@ -164,6 +171,8 @@ var _ = Describe("Integration", func() {
 				Expect(s).ToNot(BeNil())
 			})
 
+			// Tests specific handling of rate limit errors (429), which should be
+			// retried with exponential backoff but not count toward circuit breaker failures
 			It("should handle rate limits gracefully", func() {
 				// Rate limits should be retried but not trip circuit
 				mockClient.errors = []error{
@@ -228,13 +237,18 @@ var _ = Describe("Integration", func() {
 	})
 })
 
-// Mock client for integration testing
+// mockIntegrationClient provides a controlled OpenAI client implementation for integration testing.
+// It allows simulation of various error conditions and response patterns to test
+// resilience patterns like retry logic and circuit breaker behavior.
 type mockIntegrationClient struct {
-	response openai.ChatCompletionResponse
-	errors   []error
-	calls    int
+	response openai.ChatCompletionResponse // Response to return on successful calls
+	errors   []error                       // Sequential errors to return on each call
+	calls    int                           // Call counter for tracking invocations
 }
 
+// CreateChatCompletion simulates OpenAI API calls with configurable error patterns.
+// Returns errors from the errors slice in sequence, then the configured response.
+// This enables testing of retry patterns and failure scenarios.
 func (m *mockIntegrationClient) CreateChatCompletion(ctx context.Context, req openai.ChatCompletionRequest) (openai.ChatCompletionResponse, error) {
 	m.calls++
 	if m.calls <= len(m.errors) {

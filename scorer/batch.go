@@ -13,13 +13,16 @@ import (
 	"github.com/sashabaranov/go-openai/jsonschema"
 )
 
+// processBatch handles the core batch scoring workflow by formatting prompts,
+// calling the OpenAI API with JSON schema validation, and mapping responses back to items.
+// This is the primary orchestration function for batch processing operations.
 func (s *scorer) processBatch(ctx context.Context, batch []TextItem, options *scoringOptions) ([]ScoredItem, error) {
 	// Determine which prompt to use
 	promptText := s.prompt
 	if options != nil && options.promptText != "" {
 		promptText = options.promptText
 	}
-	
+
 	// Format the prompt with appropriate data
 	prompt, err := s.formatPrompt(promptText, batch, options)
 	if err != nil {
@@ -40,9 +43,9 @@ func (s *scorer) processBatch(ctx context.Context, batch []TextItem, options *sc
 
 	// Parse response
 	content := resp.Choices[0].Message.Content
-	
+
 	slog.Debug("Received response from OpenAI", "content_length", len(content))
-	
+
 	var scores scoreResponse
 	if err := json.Unmarshal([]byte(content), &scores); err != nil {
 		slog.Error("Failed to parse response JSON", "error", err, "content", content)
@@ -55,6 +58,8 @@ func (s *scorer) processBatch(ctx context.Context, batch []TextItem, options *sc
 	return s.mapScoresToItems(batch, scores.Scores), nil
 }
 
+// createChatCompletion builds and sends the OpenAI API request with structured JSON response format.
+// It handles model selection precedence: options.model > config.Model > GPT4oMini default.
 func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema *jsonschema.Definition, options *scoringOptions) (openai.ChatCompletionResponse, error) {
 	// Determine model to use
 	model := s.config.Model
@@ -92,6 +97,8 @@ func (s *scorer) createChatCompletion(ctx context.Context, prompt string, schema
 	return s.client.CreateChatCompletion(ctx, request)
 }
 
+// mapScoresToItems creates the final results by matching API scores to input items by ID.
+// It provides graceful degradation: missing scores default to 0, out-of-range scores are clamped to [0,100].
 func (s *scorer) mapScoresToItems(items []TextItem, scores []scoreItem) []ScoredItem {
 	scoreMap := make(map[string]scoreItem)
 	for _, score := range scores {
@@ -112,7 +119,7 @@ func (s *scorer) mapScoresToItems(items []TextItem, scores []scoreItem) []Scored
 					score.Score = 100
 				}
 			}
-			
+
 			results[i] = ScoredItem{
 				Item:   item,
 				Score:  score.Score,
@@ -131,46 +138,50 @@ func (s *scorer) mapScoresToItems(items []TextItem, scores []scoreItem) []Scored
 			}
 		}
 	}
-	
+
 	return results
 }
 
+// formatPrompt supports multiple prompt formats with automatic detection:
+// Go templates ({{}}), sprintf-style (%s), or plain text with appended items.
 func (s *scorer) formatPrompt(promptText string, items []TextItem, options *scoringOptions) (string, error) {
 	// Check if prompt uses Go template syntax
 	if strings.Contains(promptText, "{{") && strings.Contains(promptText, "}}") {
 		return s.formatPromptWithTemplate(promptText, items, options)
 	}
-	
+
 	// Legacy sprintf-style formatting
 	if strings.Contains(promptText, "%s") {
 		itemsText := s.formatItemsAsText(items)
 		return fmt.Sprintf(promptText, itemsText), nil
 	}
-	
+
 	// If no placeholders, append items to the prompt
 	itemsText := s.formatItemsAsText(items)
 	return fmt.Sprintf("%s\n\nItems to score:\n%s", promptText, itemsText), nil
 }
 
+// formatPromptWithTemplate executes Go template syntax with context data.
+// Available template variables: {{.Items}}, {{.Count}}, plus any extraContext fields.
 func (s *scorer) formatPromptWithTemplate(promptText string, items []TextItem, options *scoringOptions) (string, error) {
 	tmpl, err := template.New("prompt").Parse(promptText)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse prompt template: %w", err)
 	}
-	
+
 	// Prepare template data
 	data := map[string]interface{}{
 		"Items": items,
 		"Count": len(items),
 	}
-	
+
 	// Add extra context if provided
 	if options != nil && options.extraContext != nil {
 		for k, v := range options.extraContext {
 			data[k] = v
 		}
 	}
-	
+
 	var buf bytes.Buffer
 	if err := tmpl.Execute(&buf, data); err != nil {
 		// Provide helpful error message with template preview
@@ -180,7 +191,7 @@ func (s *scorer) formatPromptWithTemplate(promptText string, items []TextItem, o
 		}
 		return "", fmt.Errorf("failed to execute template '%s': %w", preview, err)
 	}
-	
+
 	return buf.String(), nil
 }
 

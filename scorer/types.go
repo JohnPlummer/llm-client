@@ -27,10 +27,10 @@ type ScoredItem struct {
 type Scorer interface {
 	// ScoreTexts scores a slice of text items
 	ScoreTexts(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
-	
+
 	// ScoreTextsWithOptions scores text items with runtime options
 	ScoreTextsWithOptions(ctx context.Context, items []TextItem, opts ...ScoringOption) ([]ScoredItem, error)
-	
+
 	// GetHealth returns the current health status of the scorer
 	GetHealth(ctx context.Context) HealthStatus
 }
@@ -58,11 +58,11 @@ type Config struct {
 
 // CircuitBreakerConfig holds circuit breaker settings
 type CircuitBreakerConfig struct {
-	MaxRequests   uint32                                          // Max requests in half-open state
-	Interval      time.Duration                                   // Interval for closed state
-	Timeout       time.Duration                                   // Timeout for open state
-	ReadyToTrip   func(counts gobreaker.Counts) bool            // Custom trip condition
-	OnStateChange func(name string, from, to gobreaker.State)    // State change callback
+	MaxRequests   uint32                                      // Max requests in half-open state
+	Interval      time.Duration                               // Interval for closed state
+	Timeout       time.Duration                               // Timeout for open state
+	ReadyToTrip   func(counts gobreaker.Counts) bool          // Custom trip condition
+	OnStateChange func(name string, from, to gobreaker.State) // State change callback
 }
 
 // RetryConfig holds retry settings
@@ -80,7 +80,7 @@ const (
 	RetryStrategyExponential RetryStrategy = "exponential"
 	RetryStrategyConstant    RetryStrategy = "constant"
 	RetryStrategyFibonacci   RetryStrategy = "fibonacci"
-	
+
 	// Content length limits
 	DefaultMaxContentLength = 10000 // Default maximum content length in characters
 	MinContentLength        = 1     // Minimum content length to be valid
@@ -157,4 +157,3 @@ func WithExtraContext(context map[string]interface{}) ScoringOption {
 		opts.extraContext = context
 	}
 }
-

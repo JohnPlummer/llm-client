@@ -16,7 +16,7 @@ func NewDefaultConfig(apiKey string) Config {
 	if apiKey == "" {
 		panic("API key is required")
 	}
-	
+
 	return Config{
 		APIKey:        apiKey,
 		Model:         openai.GPT4oMini,
@@ -30,13 +30,13 @@ func NewProductionConfig(apiKey string) Config {
 	cfg := NewDefaultConfig(apiKey)
 	cfg.MaxConcurrent = 5
 	cfg.Timeout = 60 * time.Second
-	
+
 	// Enable circuit breaker with production settings
 	cfg = cfg.WithCircuitBreaker()
-	
+
 	// Enable retry with production settings
 	cfg = cfg.WithRetry()
-	
+
 	return cfg
 }
 
@@ -50,8 +50,8 @@ func (c Config) WithCircuitBreaker() Config {
 		ReadyToTrip: func(counts gobreaker.Counts) bool {
 			// Trip if 5 consecutive failures OR failure rate > 60%
 			failureRatio := float64(counts.TotalFailures) / float64(counts.Requests)
-			return counts.ConsecutiveFailures >= 5 || 
-				   (counts.Requests >= 10 && failureRatio > 0.6)
+			return counts.ConsecutiveFailures >= 5 ||
+				(counts.Requests >= 10 && failureRatio > 0.6)
 		},
 	}
 	return c
@@ -136,50 +136,50 @@ func (c Config) Validate() error {
 	if c.APIKey == "" {
 		return errors.New("API key is required")
 	}
-	
+
 	// Model validation
 	if c.Model != "" && !isValidModel(c.Model) {
 		return fmt.Errorf("unsupported model: %s", c.Model)
 	}
-	
+
 	// Timeout validation
 	if c.Timeout < 0 {
 		return errors.New("timeout must be positive")
 	}
-	
+
 	// Concurrency validation
 	if c.MaxConcurrent < 0 {
 		return errors.New("MaxConcurrent must be non-negative")
 	}
-	
+
 	// Circuit breaker validation
 	if c.EnableCircuitBreaker && c.CircuitBreakerConfig == nil {
 		return errors.New("circuit breaker enabled but config is nil")
 	}
-	
+
 	// Retry validation
 	if c.EnableRetry {
 		if c.RetryConfig == nil {
 			return errors.New("retry enabled but config is nil")
 		}
-		
+
 		if !isValidRetryStrategy(c.RetryConfig.Strategy) {
 			return fmt.Errorf("invalid retry strategy: %s", c.RetryConfig.Strategy)
 		}
-		
+
 		if c.RetryConfig.MaxAttempts <= 0 {
 			return errors.New("retry MaxAttempts must be positive")
 		}
-		
+
 		if c.RetryConfig.InitialDelay <= 0 {
 			return errors.New("retry InitialDelay must be positive")
 		}
-		
+
 		if c.RetryConfig.MaxDelay <= 0 {
 			return errors.New("retry MaxDelay must be positive")
 		}
 	}
-	
+
 	// Template validation
 	if c.PromptText != "" {
 		if strings.Contains(c.PromptText, "{{") && strings.Contains(c.PromptText, "}}") {
@@ -189,7 +189,7 @@ func (c Config) Validate() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -204,7 +204,7 @@ func isValidModel(model string) bool {
 		openai.GPT3Dot5Turbo,
 		openai.GPT3Dot5Turbo16K,
 	}
-	
+
 	for _, valid := range validModels {
 		if model == valid {
 			return true
